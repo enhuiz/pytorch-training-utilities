@@ -288,6 +288,15 @@ def train(
 
     events = []
 
+    # Pre-loop command
+    command = _non_blocking_input()
+    if command in ["eval", "eval_quit"]:
+        model.eval()
+        eval_fn(model=model, state=state, device=device)
+        model.train()
+    if command in ["quit", "eval_quit"]:
+        return
+
     # Training loop
     for state.iteration, batch in zip(
         range(state.iteration + 1, max_iter + 1),
@@ -356,7 +365,7 @@ def train(
                 _logger.error(e)
             command = ""
 
-        # commands are the current command plus the triggerd events
+        # Commands are the current command plus the triggered (i.e. iteration >= trigger point) events
         events = [e for e in events if e[1] >= state.iteration]
         commands = [command] + [e[0] for e in events if e[1] == state.iteration]
 
