@@ -1,3 +1,4 @@
+import gc
 import re
 import logging
 import sys
@@ -309,47 +310,58 @@ def train(
         for optimizer_idx, (optimizer, scheduler) in enumerate(
             zip(optimizers, schedulers)
         ):
-            torch.cuda.synchronize()
-            start_time = time.time()
+            try:
+                torch.cuda.synchronize()
+                start_time = time.time()
 
-            loss, stats = train_step(
-                model=model,
-                batch=batch,
-                state=state,
-                optimizer_idx=optimizer_idx,
-            )
+                loss, stats = train_step(
+                    model=model,
+                    batch=batch,
+                    state=state,
+                    optimizer_idx=optimizer_idx,
+                )
 
-            if loss is None:
-                # Here we allow skip optimizers, it's useful if we want to skip discriminators
-                # in the begining of GAN training.
-                continue
+                if loss is None:
+                    # Here we allow skip optimizers. It's useful if we want, for example,
+                    # to skip discriminators in the begining of GAN training.
+                    continue
 
-            optimizer.zero_grad()
-            loss.backward()
-            grad_norm = clip_grad_norm_(
-                sum([group["params"] for group in optimizer.param_groups], []),
-                max_norm=max_grad_norm,
-            )
-            optimizer.step()
-            scheduler.step()
+                optimizer.zero_grad()
+                loss.backward()
+                grad_norm = clip_grad_norm_(
+                    sum([group["params"] for group in optimizer.param_groups], []),
+                    max_norm=max_grad_norm,
+                )
+                optimizer.step()
+                scheduler.step()
 
-            torch.cuda.synchronize()
-            elapsed_time = time.time() - start_time
-            total_elapsed_time += elapsed_time
+                torch.cuda.synchronize()
+                elapsed_time = time.time() - start_time
+                total_elapsed_time += elapsed_time
 
-            log_data.update(
-                _flatten(
-                    {
-                        f"{optimizer_idx}": dict(
-                            loss=loss.item(),
-                            lr=scheduler.get_last_lr()[0],
-                            grad_norm=grad_norm.item(),
-                            elapsed_time=elapsed_time,
-                            **stats,
-                        )
-                    }
-                ),
-            )
+                log_data.update(
+                    _flatten(
+                        {
+                            f"{optimizer_idx}": dict(
+                                loss=loss.item(),
+                                lr=scheduler.get_last_lr()[0],
+                                grad_norm=grad_norm.item(),
+                                elapsed_time=elapsed_time,
+                                **stats,
+                            )
+                        }
+                    ),
+                )
+            except Exception as e:
+                if "out of memory" in str(e):
+                    logging.warning("Ran out of memory, skipping the step ...")
+                    for p in model.parameters():
+                        if p.grad is not None:
+                            del p.grad  # free some memory
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                else:
+                    raise e
 
         log_data["elapsed_time"] = total_elapsed_time
         logger(data=log_data)
