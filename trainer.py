@@ -82,6 +82,9 @@ class SchedulerFactory(Protocol):
         ...
 
 
+StepStats = dict[str, float]
+
+
 class TrainStep(Protocol[Model_contra]):
     def __call__(
         self,
@@ -90,7 +93,7 @@ class TrainStep(Protocol[Model_contra]):
         batch: Any,
         state: State,
         optimizer_idx: int,
-    ) -> tuple[Tensor | None, dict[str, float]]:
+    ) -> None | tuple[Tensor, StepStats]:
         ...
 
 
@@ -314,17 +317,19 @@ def train(
                 torch.cuda.synchronize()
                 start_time = time.time()
 
-                loss, stats = train_step(
+                maybe_loss_stats = train_step(
                     model=model,
                     batch=batch,
                     state=state,
                     optimizer_idx=optimizer_idx,
                 )
 
-                if loss is None:
+                if maybe_loss_stats is None:
                     # Here we allow skip optimizers. It's useful if we want, for example,
                     # to skip discriminators in the begining of GAN training.
                     continue
+
+                loss, stats = maybe_loss_stats
 
                 optimizer.zero_grad()
                 loss.backward()
