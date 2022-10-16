@@ -36,11 +36,37 @@ class State:
         return asdict(self)
 
 
+def load_state_dict_non_strict_(model, state_dict):
+    model_state_dict = model.state_dict()
+    provided = set(state_dict)
+    required = set(model_state_dict)
+    agreed = provided & required
+    for k in list(agreed):
+        if model_state_dict[k].shape != state_dict[k].shape:
+            agreed.remove(k)
+            provided.remove(k)
+    state_dict = {k: state_dict[k] for k in agreed}
+    if diff := provided - required:
+        _logger.warning(
+            f"Extra parameters are found. "
+            f"Provided but not required parameters: \n{diff}."
+        )
+    if diff := required - provided:
+        _logger.warning(
+            f"Some parameters are missing. "
+            f"Required but not provided parameters: \n{diff}."
+        )
+    model.load_state_dict(state_dict, strict=False)
+
+
 def load_model(path: Path | str, model: Model, strict=True) -> tuple[Model, State]:
     path = Path(path)
     if path.exists():
         ckpt = torch.load(path, map_location="cpu")
-        model.load_state_dict(ckpt["model"], strict=strict)
+        if strict:
+            model.load_state_dict(ckpt["model"])
+        else:
+            load_state_dict_non_strict_(model, ckpt["model"])
         state = State(**ckpt["state"])
         _logger.info(f"{path} loaded.")
     else:
