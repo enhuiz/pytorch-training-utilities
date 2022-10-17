@@ -284,6 +284,7 @@ def train(
     device: str = "cuda" if torch.cuda.is_available else "cpu",
     logger: Logger = lambda data: _logger.info(str(data)),
     max_grad_norm: float = 10,
+    max_consecutive_ooms: int = 3,
 ):
     save_every = save_every or eval_every
 
@@ -327,11 +328,15 @@ def train(
     if command in ["quit", "eval_quit"]:
         return
 
+    oom_count = 0
+
     # Training loop
-    for state.iteration, batch in zip(
-        range(state.iteration + 1, max_iter + 1),
-        _make_infinite_epochs(train_dl),
-    ):
+    for batch in _make_infinite_epochs(train_dl):
+        if state.iteration >= max_iter:
+            break
+
+        state.iteration += 1
+
         total_elapsed_time = 0
         batch = to_device(batch, device)
 
@@ -383,14 +388,18 @@ def train(
                         }
                     ),
                 )
+
+                oom_count = 0
             except Exception as e:
-                if "out of memory" in str(e):
+                if "out of memory" in str(e) and oom_count < max_consecutive_ooms:
                     logging.warning("Ran out of memory, skipping the step ...")
                     for p in model.parameters():
                         if p.grad is not None:
                             del p.grad  # free some memory
                     gc.collect()
                     torch.cuda.empty_cache()
+                    state.iteration -= 1
+                    oom_count += 1
                 else:
                     raise e
 
