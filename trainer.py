@@ -340,11 +340,17 @@ def train(
         total_elapsed_time = 0
         batch = to_device(batch, device)
 
-        log_data: Any = dict(iteration=state.iteration)
+        log_dict: Any = dict(iteration=state.iteration)
+
         for optimizer_idx, (optimizer, scheduler) in enumerate(
             zip(optimizers, schedulers)
         ):
-            try:
+
+            def _step():
+                # Block scoping
+
+                nonlocal total_elapsed_time
+
                 torch.cuda.synchronize()
                 start_time = time.time()
 
@@ -356,9 +362,9 @@ def train(
                 )
 
                 if maybe_loss_stats is None:
-                    # Here we allow skip optimizers. It's useful if we want, for example,
-                    # to skip discriminators in the begining of GAN training.
-                    continue
+                    # Here we allow skip optimizers. It's useful when, for example,
+                    # skipping discriminators in the begining of GAN training.
+                    return
 
                 loss, stats = maybe_loss_stats
 
@@ -375,7 +381,7 @@ def train(
                 elapsed_time = time.time() - start_time
                 total_elapsed_time += elapsed_time
 
-                log_data.update(
+                log_dict.update(
                     _flatten(
                         {
                             f"{optimizer_idx}": dict(
@@ -389,10 +395,12 @@ def train(
                     ),
                 )
 
+            try:
+                _step()
                 oom_count = 0
             except Exception as e:
                 if "out of memory" in str(e) and oom_count < max_consecutive_ooms:
-                    logging.warning("Ran out of memory, skipping the step ...")
+                    logging.warning("Ran out of memory, skipping this step.")
                     for p in model.parameters():
                         if p.grad is not None:
                             del p.grad  # free some memory
@@ -403,8 +411,8 @@ def train(
                 else:
                     raise e
 
-        log_data["elapsed_time"] = total_elapsed_time
-        logger(data=log_data)
+        log_dict["elapsed_time"] = total_elapsed_time
+        logger(data=log_dict)
 
         command = _non_blocking_input()
 
