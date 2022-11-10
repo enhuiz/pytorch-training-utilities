@@ -408,6 +408,7 @@ def train(
                     torch.cuda.empty_cache()
                     state.iteration -= 1
                     oom_count += 1
+                    break
                 else:
                     raise e
 
