@@ -411,57 +411,60 @@ def train(
                     break
                 else:
                     raise e
+        else:
+            log_dict["elapsed_time"] = total_elapsed_time
+            logger(data=log_dict)
 
-        log_dict["elapsed_time"] = total_elapsed_time
-        logger(data=log_dict)
+            command = _non_blocking_input()
 
-        command = _non_blocking_input()
+            if "@" in command:
+                what, when = command.split("@")
+                try:
+                    events.append((what, int(when)))
+                    _logger.info(f"Event {command} registered.")
+                except Exception as e:
+                    _logger.error(e)
+                command = ""
 
-        if "@" in command:
-            what, when = command.split("@")
-            try:
-                events.append((what, int(when)))
-                _logger.info(f"Event {command} registered.")
-            except Exception as e:
-                _logger.error(e)
-            command = ""
+            # Commands are the current command plus the triggered (i.e. iteration >= trigger point) events
+            events = [e for e in events if e[1] >= state.iteration]
+            commands = [command] + [e[0] for e in events if e[1] == state.iteration]
 
-        # Commands are the current command plus the triggered (i.e. iteration >= trigger point) events
-        events = [e for e in events if e[1] >= state.iteration]
-        commands = [command] + [e[0] for e in events if e[1] == state.iteration]
+            for command in commands:
+                if command == "event show":
+                    msg = "Events:\n" + "\n".join(
+                        ["@".join(map(str, e)) for e in events]
+                    )
+                    _logger.info(msg)
 
-        for command in commands:
-            if command == "event show":
-                msg = "Events:\n" + "\n".join(["@".join(map(str, e)) for e in events])
-                _logger.info(msg)
+                if command == "event clear":
+                    events.clear()
 
-            if command == "event clear":
-                events.clear()
+                if "time" in command:
+                    target_iter = max_iter
+                    if " to " in command:
+                        try:
+                            target_iter = int(command.split(" to ")[-1])
+                        except Exception as e:
+                            _logger.error(e)
+                    left_iters = target_iter - state.iteration + 1
+                    remaining_time = int(left_iters * total_elapsed_time)
+                    _logger.info(humanize.precisedelta(remaining_time))
 
-            if "time" in command:
-                tgt_iter = max_iter
-                if " to " in command:
-                    try:
-                        tgt_iter = int(command.split(" to ")[-1])
-                    except Exception as e:
-                        _logger.error(e)
-                remaining_time = int((tgt_iter - state.iteration) * total_elapsed_time)
-                _logger.info(humanize.precisedelta(remaining_time))
+                if state.iteration % save_every == 0 or command in ["save", "quit"]:
+                    ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+                    _save_ckpt(
+                        path=ckpt_path,
+                        model=model,
+                        state=state,
+                        optimizers=optimizers,
+                        schedulers=schedulers,
+                    )
 
-            if state.iteration % save_every == 0 or command in ["save", "quit"]:
-                ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-                _save_ckpt(
-                    path=ckpt_path,
-                    model=model,
-                    state=state,
-                    optimizers=optimizers,
-                    schedulers=schedulers,
-                )
+                if state.iteration % eval_every == 0 or command == "eval":
+                    model.eval()
+                    eval_fn(model=model, state=state, device=device)
+                    model.train()
 
-            if state.iteration % eval_every == 0 or command == "eval":
-                model.eval()
-                eval_fn(model=model, state=state, device=device)
-                model.train()
-
-            if command == "quit":
-                return
+                if command == "quit":
+                    return
