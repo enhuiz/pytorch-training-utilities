@@ -93,7 +93,7 @@ def config_logging(log_dir: str | Path | None = "log", log_level="info"):
     )
 
 
-class ModelFactory(Protocol[Model_co]):
+class ModelLoader(Protocol[Model_co]):
     def __call__(self, path: Path) -> tuple[Model_co, State]:
         ...
 
@@ -137,13 +137,26 @@ class Logger(Protocol):
         ...
 
 
-def _save_ckpt(
-    *,
-    path: Path,
+class ModelSaver(Protocol[Model_co]):
+    def __call__(
+        self,
+        path: Path,
+        model: nn.Module,
+        state: State,
+        optimizers: list[Optimizer],
+        schedulers: list[Scheduler],
+        **kwargs,
+    ):
+        ...
+
+
+def save_model(
+    path: Path | str,
     model: nn.Module,
     state: State,
     optimizers: list[Optimizer],
     schedulers: list[Scheduler],
+    **kwargs,
 ):
     torch.save(
         dict(
@@ -151,6 +164,7 @@ def _save_ckpt(
             optimizers=[optimizer.state_dict() for optimizer in optimizers],
             schedulers=[scheduler.state_dict() for scheduler in schedulers],
             state=state.asdict(),
+            **kwargs,
         ),
         path,
     )
@@ -271,7 +285,7 @@ def to_device(x, device):
 
 
 def train(
-    model_factory: ModelFactory,
+    model_loader: ModelLoader,
     optimizer_factories: list[OptimizerFactory],
     train_dl: DataLoader,
     train_step: TrainStep,
@@ -285,6 +299,7 @@ def train(
     logger: Logger = lambda data: _logger.info(str(data)),
     max_grad_norm: float = 10,
     max_consecutive_ooms: int = 3,
+    model_saver: ModelSaver = save_model,
 ):
     save_every = save_every or eval_every
 
@@ -293,7 +308,7 @@ def train(
     torch.manual_seed(0)
 
     # Load model
-    model, state = model_factory(ckpt_path)
+    model, state = model_loader(ckpt_path)
     model = model.to(device)
     model.train()
 
@@ -453,7 +468,7 @@ def train(
 
                 if state.iteration % save_every == 0 or command in ["save", "quit"]:
                     ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-                    _save_ckpt(
+                    model_saver(
                         path=ckpt_path,
                         model=model,
                         state=state,
