@@ -36,7 +36,7 @@ class State:
         return asdict(self)
 
 
-def load_state_dict_non_strict_(model, state_dict):
+def load_state_dict_non_strict(model, state_dict):
     model_state_dict = model.state_dict()
     provided = set(state_dict)
     required = set(model_state_dict)
@@ -59,14 +59,19 @@ def load_state_dict_non_strict_(model, state_dict):
     model.load_state_dict(state_dict, strict=False)
 
 
+@cache
+def load_ckpt(path: Path | str):
+    return torch.load(path, map_location="cpu")
+
+
 def load_model(path: Path | str, model: Model, strict=True) -> tuple[Model, State]:
     path = Path(path)
     if path.exists():
-        ckpt = torch.load(path, map_location="cpu")
+        ckpt = load_ckpt(path)
         if strict:
             model.load_state_dict(ckpt["model"])
         else:
-            load_state_dict_non_strict_(model, ckpt["model"])
+            load_state_dict_non_strict(model, ckpt["model"])
         state = State(**ckpt["state"])
         _logger.info(f"{path} loaded.")
     else:
@@ -171,7 +176,7 @@ def save_model(
     _logger.info(f"{path} saved.")
 
 
-def _load_optimizers_and_schedulers_(
+def _load_optimizers_and_schedulers(
     *,
     path: Path,
     optimizers: list[Optimizer],
@@ -182,7 +187,7 @@ def _load_optimizers_and_schedulers_(
     if not path.exists():
         return
 
-    ckpt = torch.load(path, map_location="cpu")
+    ckpt = load_ckpt(path)
 
     try:
         for optimizer, state_dict in zip(optimizers, ckpt["optimizers"]):
@@ -326,11 +331,14 @@ def train(
             scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda _: 1)
         schedulers.append(scheduler)
 
-    _load_optimizers_and_schedulers_(
+    _load_optimizers_and_schedulers(
         path=ckpt_path,
         optimizers=optimizers,
         schedulers=schedulers,
     )
+
+    # Release cached ckpt
+    load_ckpt.cache_clear()
 
     events = []
 
