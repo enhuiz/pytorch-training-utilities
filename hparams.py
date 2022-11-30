@@ -39,7 +39,8 @@ def init_hp(cls):
         cfg_path = Path(cli_hp.config)
         if cfg_path.parts[0] != "config":
             raise ValueError("Config must come from the config folder.")
-        cfg_hp.setdefault("name", cfg_path.relative_to("config").with_suffix(""))
+        cfg_root = getattr(cls, "cfg_root", "config")
+        cfg_hp.setdefault("name", cfg_path.relative_to(cfg_root).with_suffix(""))
         cli_hp.pop("config")
     else:
         cfg_hp = {}
