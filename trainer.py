@@ -351,8 +351,6 @@ def train(
     if command in ["quit", "eval_quit"]:
         return
 
-    oom_count = 0
-
     # Training loop
     for batch in _make_infinite_epochs(train_dl):
         if state.iteration >= max_iter:
@@ -368,126 +366,101 @@ def train(
         for optimizer_idx, (optimizer, scheduler) in enumerate(
             zip(optimizers, schedulers)
         ):
+            torch.cuda.synchronize()
+            start_time = time.time()
 
-            def _step():
-                # Block scoping
+            maybe_loss_stats = train_step(
+                model=model,
+                batch=batch,
+                state=state,
+                optimizer_idx=optimizer_idx,
+            )
 
-                nonlocal total_elapsed_time
+            if maybe_loss_stats is None:
+                # Here we allow skip optimizers. It's useful when, for example,
+                # skipping discriminators in the begining of GAN training.
+                return
 
-                torch.cuda.synchronize()
-                start_time = time.time()
+            loss, stats = maybe_loss_stats
 
-                maybe_loss_stats = train_step(
-                    model=model,
-                    batch=batch,
-                    state=state,
-                    optimizer_idx=optimizer_idx,
-                )
+            optimizer.zero_grad()
+            loss.backward()
+            grad_norm = clip_grad_norm_(
+                sum([group["params"] for group in optimizer.param_groups], []),
+                max_norm=max_grad_norm,
+            )
+            optimizer.step()
+            scheduler.step()
 
-                if maybe_loss_stats is None:
-                    # Here we allow skip optimizers. It's useful when, for example,
-                    # skipping discriminators in the begining of GAN training.
-                    return
+            torch.cuda.synchronize()
+            elapsed_time = time.time() - start_time
+            total_elapsed_time += elapsed_time
 
-                loss, stats = maybe_loss_stats
+            log_dict.update(
+                _flatten(
+                    {
+                        f"{optimizer_idx}": dict(
+                            loss=loss.item(),
+                            lr=scheduler.get_last_lr()[0],
+                            grad_norm=grad_norm.item(),
+                            elapsed_time=elapsed_time,
+                            **stats,
+                        )
+                    }
+                ),
+            )
 
-                optimizer.zero_grad()
-                loss.backward()
-                grad_norm = clip_grad_norm_(
-                    sum([group["params"] for group in optimizer.param_groups], []),
-                    max_norm=max_grad_norm,
-                )
-                optimizer.step()
-                scheduler.step()
+        log_dict["elapsed_time"] = total_elapsed_time
+        logger(data=log_dict)
 
-                torch.cuda.synchronize()
-                elapsed_time = time.time() - start_time
-                total_elapsed_time += elapsed_time
+        command = _non_blocking_input()
 
-                log_dict.update(
-                    _flatten(
-                        {
-                            f"{optimizer_idx}": dict(
-                                loss=loss.item(),
-                                lr=scheduler.get_last_lr()[0],
-                                grad_norm=grad_norm.item(),
-                                elapsed_time=elapsed_time,
-                                **stats,
-                            )
-                        }
-                    ),
-                )
-
+        if "@" in command:
+            what, when = command.split("@")
             try:
-                _step()
-                oom_count = 0
+                events.append((what, int(when)))
+                _logger.info(f"Event {command} registered.")
             except Exception as e:
-                if "out of memory" in str(e) and oom_count < max_consecutive_ooms:
-                    logging.warning("Ran out of memory, skipping this step.")
-                    for p in model.parameters():
-                        if p.grad is not None:
-                            del p.grad  # free some memory
-                    gc.collect()
-                    torch.cuda.empty_cache()
-                    state.iteration -= 1
-                    oom_count += 1
-                    break
-                else:
-                    raise e
-        else:
-            log_dict["elapsed_time"] = total_elapsed_time
-            logger(data=log_dict)
+                _logger.error(e)
+            command = ""
 
-            command = _non_blocking_input()
+        # Commands are the current command plus the triggered (i.e. iteration >= trigger point) events
+        events = [e for e in events if e[1] >= state.iteration]
+        commands = [command] + [e[0] for e in events if e[1] == state.iteration]
 
-            if "@" in command:
-                what, when = command.split("@")
-                try:
-                    events.append((what, int(when)))
-                    _logger.info(f"Event {command} registered.")
-                except Exception as e:
-                    _logger.error(e)
-                command = ""
+        for command in commands:
+            if command in ["event show", "event"]:
+                msg = "Events:\n" + "\n".join(["@".join(map(str, e)) for e in events])
+                _logger.info(msg)
 
-            # Commands are the current command plus the triggered (i.e. iteration >= trigger point) events
-            events = [e for e in events if e[1] >= state.iteration]
-            commands = [command] + [e[0] for e in events if e[1] == state.iteration]
+            if command == "event clear":
+                events.clear()
 
-            for command in commands:
-                if command == "event show":
-                    msg = "Events:\n" + "\n".join(
-                        ["@".join(map(str, e)) for e in events]
-                    )
-                    _logger.info(msg)
+            if "time" in command:
+                target_iter = max_iter
+                if " to " in command:
+                    try:
+                        target_iter = int(command.split(" to ")[-1])
+                    except Exception as e:
+                        _logger.error(e)
+                remaining_iters = target_iter - state.iteration + 1
+                remaining_time = int(remaining_iters * total_elapsed_time)
+                _logger.info(humanize.precisedelta(remaining_time))
 
-                if command == "event clear":
-                    events.clear()
+            if state.iteration % save_every == 0 or command in ["save", "quit"]:
+                ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+                model_saver(
+                    path=ckpt_path,
+                    model=model,
+                    state=state,
+                    optimizers=optimizers,
+                    schedulers=schedulers,
+                )
 
-                if "time" in command:
-                    target_iter = max_iter
-                    if " to " in command:
-                        try:
-                            target_iter = int(command.split(" to ")[-1])
-                        except Exception as e:
-                            _logger.error(e)
-                    left_iters = target_iter - state.iteration + 1
-                    remaining_time = int(left_iters * total_elapsed_time)
-                    _logger.info(humanize.precisedelta(remaining_time))
+            if state.iteration % eval_every == 0 or command == "eval":
+                model.eval()
+                eval_fn(model=model, state=state, device=device)
+                model.train()
 
-                if state.iteration % save_every == 0 or command in ["save", "quit"]:
-                    ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-                    model_saver(
-                        path=ckpt_path,
-                        model=model,
-                        state=state,
-                        optimizers=optimizers,
-                        schedulers=schedulers,
-                    )
-
-                if state.iteration % eval_every == 0 or command == "eval":
-                    model.eval()
-                    eval_fn(model=model, state=state, device=device)
-                    model.train()
-
-                if command == "quit":
-                    return
+            if command == "quit":
+                return
