@@ -303,7 +303,6 @@ def train(
     device: str = "cuda" if torch.cuda.is_available else "cpu",
     logger: Logger = lambda data: _logger.info(str(data)),
     max_grad_norm: float = 10,
-    max_consecutive_ooms: int = 3,
     model_saver: ModelSaver = save_model,
 ):
     save_every = save_every or eval_every
