@@ -331,7 +331,7 @@ def train(
             if maybe_loss_stats is None:
                 # Here we allow skip optimizers. It's useful when, for example,
                 # skipping discriminators in the begining of GAN training.
-                return
+                continue
 
             loss, stats = maybe_loss_stats
 
