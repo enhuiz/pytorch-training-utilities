@@ -60,7 +60,7 @@ class HParams:
 
     def dump(self, path=None):
         if path is None:
-            path = self.log_dir / "hparams.json"
+            path = self.log_dir / "hp.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
             f.write(self.dumps())
