@@ -1,14 +1,13 @@
-import gc
-import re
-import logging
+import time
+import json
 import sys
 import time
 import torch
-import torch.nn as nn
 import random
 import selectors
 import humanize
-import pandas as pd
+import logging
+from torch import nn
 from itertools import zip_longest
 from functools import cache
 from pathlib import Path
@@ -18,7 +17,7 @@ from torch.optim.lr_scheduler import _LRScheduler as Scheduler
 from torch.utils.data import DataLoader
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Protocol, TypeVar, overload
+from typing import Any, Protocol, TypeVar, overload
 
 _logger = logging.getLogger(__name__)
 
@@ -26,6 +25,9 @@ T = TypeVar("T")
 Model = TypeVar("Model", bound=nn.Module)
 Model_co = TypeVar("Model_co", bound=nn.Module, covariant=True)
 Model_contra = TypeVar("Model_contra", bound=nn.Module, contravariant=True)
+
+from .utils import flatten_dict
+from .logging import setup_logging
 
 
 @dataclass
@@ -78,24 +80,6 @@ def load_model(path: Path | str, model: Model, strict=True) -> tuple[Model, Stat
         _logger.warn(f"{path} does not exist, skip loading.")
         state = State()
     return model, state
-
-
-def config_logging(log_dir: str | Path | None = "log", log_level="info"):
-    handlers: list[Any] = []
-    if log_dir is not None:
-        filename = Path(log_dir) / f"log.txt"
-        filename.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(filename, mode="a")
-        file_handler.setLevel(logging.DEBUG)
-        handlers.append(file_handler)
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    handlers.append(console_handler)
-    logging.basicConfig(
-        level=logging.getLevelName(log_level.upper()),
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=handlers,
-    )
 
 
 class ModelLoader(Protocol[Model_co]):
@@ -228,42 +212,6 @@ def _make_infinite_epochs(dl):
         yield from dl
 
 
-def _get_named_modules(module, attrname):
-    for name, module in module.named_modules():
-        if hasattr(module, attrname):
-            yield name, module
-
-
-def _flatten(d):
-    records = pd.json_normalize(d).to_dict(orient="records")
-    return records[0] if records else {}
-
-
-def gather_attribute(module, attrname, delete=True, prefix=True):
-    ret = {}
-    for name, module in _get_named_modules(module, attrname):
-        ret[name] = getattr(module, attrname)
-        if delete:
-            delattr(module, attrname)
-    if prefix:
-        ret = {attrname: ret}
-    ret = _flatten(ret)
-    # remove consecutive dots
-    ret = {re.sub(r"\.+", ".", k): v for k, v in ret.items()}
-    return ret
-
-
-def dispatch_attribute(
-    module,
-    attrname,
-    value,
-    filter_fn: Callable[[nn.Module], bool] | None = None,
-):
-    for _, module in _get_named_modules(module, attrname):
-        if filter_fn is None or filter_fn(module):
-            setattr(module, attrname, value)
-
-
 @overload
 def to_device(x: list[T], device: str) -> list[T]:
     ...
@@ -289,6 +237,11 @@ def to_device(x, device):
     return x
 
 
+def setup(hp):
+    hp.dump()
+    setup_logging(hp.log_dir)
+
+
 def train(
     model_loader: ModelLoader,
     optimizer_factories: list[OptimizerFactory],
@@ -301,7 +254,7 @@ def train(
     scheduler_factories: list[SchedulerFactory | None] = [],
     save_every: int | None = None,
     device: str = "cuda" if torch.cuda.is_available else "cpu",
-    logger: Logger = lambda data: _logger.info(str(data)),
+    logger: Logger = lambda data: _logger.info(json.dumps(data, indent=2, default=str)),
     max_grad_norm: float = 10,
     model_saver: ModelSaver = save_model,
 ):
@@ -396,7 +349,7 @@ def train(
             total_elapsed_time += elapsed_time
 
             log_dict.update(
-                _flatten(
+                flatten_dict(
                     {
                         f"{optimizer_idx}": dict(
                             loss=loss.item(),
@@ -410,6 +363,7 @@ def train(
             )
 
         log_dict["elapsed_time"] = total_elapsed_time
+        log_dict["wall_time"] = time.time()
         logger(data=log_dict)
 
         command = _non_blocking_input()

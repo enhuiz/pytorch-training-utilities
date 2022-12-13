@@ -1,3 +1,3 @@
-# My Torch Training Utils
+# PyTorch Training Utilities (WIP)
 
-WIP
+This is my set of PyTorch training utilities. Interfaces may change rapidly. Don't worry if you have checked out the correct commit.
