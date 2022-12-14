@@ -1,6 +1,5 @@
-import time
-import json
 import sys
+import json
 import time
 import torch
 import random
@@ -16,7 +15,7 @@ from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler as Scheduler
 from torch.utils.data import DataLoader
 from torch.nn.utils.clip_grad import clip_grad_norm_
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Protocol, TypeVar, overload
 
 _logger = logging.getLogger(__name__)
@@ -27,6 +26,7 @@ Model_co = TypeVar("Model_co", bound=nn.Module, covariant=True)
 Model_contra = TypeVar("Model_contra", bound=nn.Module, contravariant=True)
 
 from .utils import flatten_dict
+from .config import Config
 from .logging import setup_logging
 
 
@@ -36,6 +36,44 @@ class State:
 
     def asdict(self):
         return asdict(self)
+
+
+_cfg: Config
+_state: State
+
+
+def get_cfg():
+    try:
+        return _cfg
+    except:
+        return None
+
+
+def get_state():
+    try:
+        return replace(_state)
+    except:
+        return None
+
+
+def get_iteration():
+    try:
+        return _state.iteration
+    except:
+        return None
+
+
+def setup(cfg: Config):
+    # Register cfg
+    global _cfg
+    _cfg = cfg
+
+    # Dump cfg
+    cfg.dump()
+
+    # Config logging
+    setup_logging(cfg.log_dir)
+    _logger.info(cfg)
 
 
 def load_state_dict_non_strict(model, state_dict):
@@ -237,11 +275,6 @@ def to_device(x, device):
     return x
 
 
-def setup(hp):
-    hp.dump()
-    setup_logging(hp.log_dir)
-
-
 def train(
     model_loader: ModelLoader,
     optimizer_factories: list[OptimizerFactory],
@@ -258,6 +291,7 @@ def train(
     max_grad_norm: float = 10,
     model_saver: ModelSaver = save_model,
 ):
+
     save_every = save_every or eval_every
 
     # Set up random seeds
@@ -268,6 +302,10 @@ def train(
     model, state = model_loader(ckpt_path)
     model = model.to(device)
     model.train()
+
+    # Setup state
+    global _state
+    _state = state
 
     # Prepare optimizers and schedulers
     optimizers: list[Optimizer] = []

@@ -4,15 +4,17 @@ import json
 import subprocess
 from pathlib import Path
 from omegaconf import OmegaConf
-from dataclasses import dataclass, asdict
 from functools import cached_property
+from dataclasses import dataclass, asdict
 
 
-@dataclass
+@dataclass(frozen=True)
 class Config:
     cfg_name: str = "my-cfg"
     log_root: Path = Path("logs")
     ckpt_root: Path = Path("ckpts")
+
+    save_artifact_every: int | None = 100
 
     @property
     def cfg_relpath(self):
@@ -45,12 +47,6 @@ class Config:
             return subprocess.check_output(cmd.split()).decode("utf8").strip()
         except:
             return ""
-
-    def __str__(self):
-        return self.dumps()
-
-    def __repr__(self):
-        return str(self)
 
     def dumps(self):
         data = {k: getattr(self, k) for k in dir(self) if not k.startswith("__")}
@@ -88,6 +84,12 @@ class Config:
         obj = cls(**dict(OmegaConf.merge(cls, yaml_cfg, cli_cfg)))
 
         return obj
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return self.dumps()
 
 
 if __name__ == "__main__":
