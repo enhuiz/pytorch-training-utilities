@@ -17,6 +17,14 @@ def is_saving():
     )
 
 
+def get_path(name, suffix, mkdir=True):
+    cfg, itr = get_cfg_itr_strict()
+    path = (cfg.log_dir / "artifact" / name / f"{itr:06d}").with_suffix(suffix)
+    if mkdir:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def get_cfg_itr_strict():
     assert is_saving()
     cfg = get_cfg()
@@ -27,22 +35,17 @@ def get_cfg_itr_strict():
 
 
 def save_plot(name):
-    cfg, itr = get_cfg_itr_strict()
-    path = (cfg.log_dir / "artifact" / name / f"{itr:06d}").with_suffix(".png")
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path = get_path(name, "png")
     plt.savefig(path)
-    print(path, "saved.")
     plt.close()
+    print(path, "saved.")
 
 
 def save_wav(name, wav, sr):
-    cfg, itr = get_cfg_itr_strict()
-
     # Lazy import
     import soundfile
 
-    path = (cfg.log_dir / "artifact" / name / f"{itr:06d}").with_suffix(".wav")
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path = get_path(name, ".wav")
     soundfile.write(str(path), wav, sr)
     print(path, "saved.")
 
