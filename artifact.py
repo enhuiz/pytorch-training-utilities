@@ -1,6 +1,4 @@
-import torch
 import matplotlib.pyplot as plt
-from torch import Tensor
 from collections import defaultdict
 
 from .trainer import get_cfg, get_iteration
@@ -34,7 +32,7 @@ def get_cfg_itr_strict():
     return cfg, itr
 
 
-def save_plot(name):
+def save_fig(name):
     path = get_path(name, "png")
     plt.savefig(path)
     plt.close()
@@ -50,23 +48,30 @@ def save_wav(name, wav, sr):
     print(path, "saved.")
 
 
-def save_tsne(name, x: Tensor | list[Tensor], label):
+def save_tsne(name, x: list, y: list | None = None, m: list[str] | None = None):
+    """
+    Args:
+        x: list of vectors.
+        y: list of labels.
+        m: list of markers.
+    """
     # Lazy import
     from sklearn.manifold import TSNE
 
-    if isinstance(x, list):
-        x = torch.cat(x)  # (n d)
-
-    assert isinstance(x, Tensor)
-
     tsne = TSNE(n_components=2)
-    y = tsne.fit_transform(x.cpu().numpy())
-    y_by_label = defaultdict(list)
-    for i, l in enumerate(map(len, x)):
-        y_by_label[label[i].item()].extend(y[:l])
-        y = y[l:]
-    for k, v in y_by_label.items():
-        plt.scatter(*zip(*v), marker="x", alpha=0.5, label=k)
+
+    x = tsne.fit_transform(x)
+
+    groups = defaultdict(list)
+
+    z = [None] * len(x)
+
+    for xi, yi, ci in zip(x, y or z, m or z):
+        groups[yi].append([xi, ci])
+
+    for yi, (xi, ci) in groups.items():
+        plt.scatter(*zip(*xi), marker=m, alpha=0.5, y=yi)
+
     plt.legend()
 
-    save_plot(name)
+    save_fig(name)
