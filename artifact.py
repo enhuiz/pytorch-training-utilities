@@ -15,14 +15,6 @@ def is_saving():
     )
 
 
-def get_path(name, suffix, mkdir=True):
-    cfg, itr = get_cfg_itr_strict()
-    path = (cfg.log_dir / "artifact" / name / f"{itr:06d}").with_suffix(suffix)
-    if mkdir:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
-
 def get_cfg_itr_strict():
     assert is_saving()
     cfg = get_cfg()
@@ -30,6 +22,14 @@ def get_cfg_itr_strict():
     assert cfg is not None
     assert itr is not None
     return cfg, itr
+
+
+def get_path(name, suffix, mkdir=True):
+    cfg, itr = get_cfg_itr_strict()
+    path = (cfg.log_dir / "artifact" / name / f"{itr:06d}").with_suffix(suffix)
+    if mkdir:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def save_fig(name):
