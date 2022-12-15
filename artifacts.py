@@ -9,9 +9,9 @@ def is_saving():
     itr = get_iteration()
     return (
         cfg is not None
-        and cfg.save_artifact_every is not None
+        and cfg.save_artifacts_every is not None
         and itr is not None
-        and itr % cfg.save_artifact_every == 0
+        and itr % cfg.save_artifacts_every == 0
     )
 
 
@@ -26,7 +26,7 @@ def get_cfg_itr_strict():
 
 def get_path(name, suffix, mkdir=True):
     cfg, itr = get_cfg_itr_strict()
-    path = (cfg.log_dir / "artifact" / name / f"{itr:06d}").with_suffix(suffix)
+    path = (cfg.log_dir / "artifacts" / name / f"{itr:06d}").with_suffix(suffix)
     if mkdir:
         path.parent.mkdir(parents=True, exist_ok=True)
     return path

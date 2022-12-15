@@ -14,7 +14,7 @@ class Config:
     log_root: Path = Path("logs")
     ckpt_root: Path = Path("ckpts")
 
-    save_artifact_every: int | None = 100
+    save_artifacts_every: int | None = 100
 
     @property
     def cfg_relpath(self):
