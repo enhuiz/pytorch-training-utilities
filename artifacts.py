@@ -1,6 +1,7 @@
 import numpy as np
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
-from torch import Tensor
+from matplotlib.markers import MarkerStyle
 from collections import defaultdict
 
 from .trainer import get_cfg, get_iteration
@@ -52,38 +53,44 @@ def save_wav(name, wav, sr):
 
 def save_tsne(
     name,
-    x: np.ndarray | Tensor | list,
-    y: np.ndarray | Tensor | list | None = None,
-    m: list[str] | None = None,
+    x: np.ndarray | list,
+    y: np.ndarray | list | None = None,
+    c: np.ndarray | list | None = None,
+    n_jobs: int = 8,
 ):
     """
     Args:
         x: list of vectors.
         y: list of labels.
-        m: list of markers.
+        c: list of colors.
     """
     # Lazy import
-    from sklearn.manifold import TSNE
+    from openTSNE import TSNE
 
-    if isinstance(x, Tensor):
-        x = x.cpu().numpy()
-    elif isinstance(x, list):
-        x = np.array(x)
+    x = np.array(x)
 
-    tsne = TSNE(n_components=2)
+    if y is not None:
+        y = list(y)
 
-    x = tsne.fit_transform(x)
+    if c is not None:
+        c = list(cm.rainbow(np.array(c)))
+
+    x = TSNE(n_components=2, n_jobs=n_jobs).fit(x)
 
     groups = defaultdict(list)
 
     z = [None] * len(x)
 
-    for xi, yi, ci in zip(x, y or z, m or z):
-        groups[yi].append((xi, ci))
+    for xi, yi, ci in zip(x, y or z, c or z):
+        groups[yi].append((*xi, ci))
 
-    for yi, vi in groups.items():
-        xi, ci = zip(*vi)
-        plt.scatter(*zip(*xi), marker=m, alpha=0.5, label=str(yi))
+    for (ki, vi), mi in zip(sorted(groups.items()), MarkerStyle.markers):
+        ai, bi, ci = zip(*vi)
+        if any([cij is None for cij in ci]):
+            # Only use different markers when ci is None
+            ci = None
+            mi = None
+        plt.scatter(x=ai, y=bi, c=ci, alpha=0.5, label=str(ki), marker=mi)
 
     plt.legend()
 
