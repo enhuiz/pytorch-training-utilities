@@ -1,4 +1,6 @@
+import numpy as np
 import matplotlib.pyplot as plt
+from torch import Tensor
 from collections import defaultdict
 
 from .trainer import get_cfg, get_iteration
@@ -11,7 +13,7 @@ def is_saving():
         cfg is not None
         and cfg.save_artifacts_every is not None
         and itr is not None
-        and itr % cfg.save_artifacts_every == 0
+        and (itr % cfg.save_artifacts_every == 0 or itr == 1)
     )
 
 
@@ -33,7 +35,7 @@ def get_path(name, suffix, mkdir=True):
 
 
 def save_fig(name):
-    path = get_path(name, "png")
+    path = get_path(name, ".png")
     plt.savefig(path)
     plt.close()
     print(path, "saved.")
@@ -48,7 +50,12 @@ def save_wav(name, wav, sr):
     print(path, "saved.")
 
 
-def save_tsne(name, x: list, y: list | None = None, m: list[str] | None = None):
+def save_tsne(
+    name,
+    x: np.ndarray | Tensor | list,
+    y: np.ndarray | Tensor | list | None = None,
+    m: list[str] | None = None,
+):
     """
     Args:
         x: list of vectors.
@@ -57,6 +64,11 @@ def save_tsne(name, x: list, y: list | None = None, m: list[str] | None = None):
     """
     # Lazy import
     from sklearn.manifold import TSNE
+
+    if isinstance(x, Tensor):
+        x = x.cpu().numpy()
+    elif isinstance(x, list):
+        x = np.array(x)
 
     tsne = TSNE(n_components=2)
 
@@ -67,10 +79,11 @@ def save_tsne(name, x: list, y: list | None = None, m: list[str] | None = None):
     z = [None] * len(x)
 
     for xi, yi, ci in zip(x, y or z, m or z):
-        groups[yi].append([xi, ci])
+        groups[yi].append((xi, ci))
 
-    for yi, (xi, ci) in groups.items():
-        plt.scatter(*zip(*xi), marker=m, alpha=0.5, y=yi)
+    for yi, vi in groups.items():
+        xi, ci = zip(*vi)
+        plt.scatter(*zip(*xi), marker=m, alpha=0.5, label=str(yi))
 
     plt.legend()
 
