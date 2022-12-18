@@ -14,6 +14,13 @@ class Config:
     log_root: Path = Path("logs")
     ckpt_root: Path = Path("ckpts")
 
+    device: str = "cuda"
+
+    max_iter: int = 100_000
+    max_grad_norm: float = 10
+
+    ckpt_every: int | None = None
+    eval_every: int = 1_000
     save_artifacts_every: int | None = 100
 
     @property
