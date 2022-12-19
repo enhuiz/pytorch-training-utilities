@@ -87,7 +87,7 @@ def save_tsne(
     for (ki, vi), mi in zip(sorted(groups.items()), MarkerStyle.markers):
         ai, bi, ci = zip(*vi)
         if any([cij is None for cij in ci]):
-            # Only use different markers when ci is None
+            # Only use different markers when color is given.
             ci = None
             mi = None
         plt.scatter(x=ai, y=bi, c=ci, alpha=0.5, label=str(ki), marker=mi)
