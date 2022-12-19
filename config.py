@@ -17,7 +17,7 @@ class Config:
     device: str = "cuda"
 
     max_iter: int = 100_000
-    max_grad_norm: float = 10
+    max_grad_norm: float | None = None
 
     ckpt_every: int | None = None
     eval_every: int = 1_000

@@ -372,8 +372,8 @@ def train(
             optimizer.zero_grad()
             loss.backward()
             grad_norm = clip_grad_norm_(
-                sum([group["params"] for group in optimizer.param_groups], []),
-                max_norm=cfg.max_grad_norm,
+                [p for g in optimizer.param_groups for p in g["params"]],
+                max_norm=cfg.max_grad_norm or 1e9,
             )
             optimizer.step()
             scheduler.step()
