@@ -283,7 +283,6 @@ def train(
     train_dl: DataLoader,
     train_step: TrainStep,
     eval_fn: EvalFn,
-    ckpt_path: Path,
     scheduler_factories: list[SchedulerFactory | None] = [],
     logger: Logger = lambda data: _logger.info(json.dumps(data, indent=2, default=str)),
     model_saver: ModelSaver = save_model,
@@ -295,7 +294,7 @@ def train(
     torch.manual_seed(0)
 
     # Load model
-    model, state = model_loader(ckpt_path)
+    model, state = model_loader(cfg.ckpt_path)
     model = model.to(cfg.device)
     model.train()
 
@@ -318,7 +317,7 @@ def train(
         schedulers.append(scheduler)
 
     _load_optimizers_and_schedulers(
-        path=ckpt_path,
+        path=cfg.ckpt_path,
         optimizers=optimizers,
         schedulers=schedulers,
     )
@@ -436,9 +435,9 @@ def train(
 
             ckpt_every = cfg.ckpt_every or cfg.eval_every
             if state.iteration % ckpt_every == 0 or command in ["save", "quit"]:
-                ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+                cfg.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
                 model_saver(
-                    path=ckpt_path,
+                    path=cfg.ckpt_path,
                     model=model,
                     state=state,
                     optimizers=optimizers,
