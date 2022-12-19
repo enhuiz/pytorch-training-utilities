@@ -8,8 +8,12 @@ from .trainer import get_cfg, get_iteration
 
 
 def is_saving():
-    cfg = get_cfg()
-    itr = get_iteration()
+    try:
+        cfg = get_cfg()
+        itr = get_iteration()
+    except:
+        return False
+
     return (
         cfg is not None
         and cfg.save_artifacts_every is not None
