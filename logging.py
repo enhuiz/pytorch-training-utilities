@@ -1,7 +1,8 @@
 import logging
 from logging import StreamHandler
-from coloredlogs import ColoredFormatter
 from pathlib import Path
+
+from coloredlogs import ColoredFormatter
 
 
 def setup_logging(log_dir: str | Path | None = "log", log_level="info"):

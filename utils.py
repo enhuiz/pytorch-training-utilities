@@ -1,7 +1,8 @@
 import re
+from typing import Callable
+
 import pandas as pd
 from torch import nn
-from typing import Callable
 
 
 def flatten_dict(d):

@@ -1,8 +1,9 @@
-import numpy as np
+from collections import defaultdict
+
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.markers import MarkerStyle
-from collections import defaultdict
 
 from .trainer import get_cfg, get_iteration
 

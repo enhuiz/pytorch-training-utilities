@@ -1,11 +1,12 @@
-import sys
-import time
 import json
 import subprocess
-from pathlib import Path
-from omegaconf import OmegaConf
+import sys
+import time
+from dataclasses import asdict, dataclass
 from functools import cached_property
-from dataclasses import dataclass, asdict
+from pathlib import Path
+
+from omegaconf import OmegaConf
 
 
 @dataclass(frozen=True)

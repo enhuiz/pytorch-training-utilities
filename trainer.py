@@ -1,22 +1,26 @@
-import sys
 import json
-import time
-import torch
+import logging
 import random
 import selectors
-import humanize
-import logging
-from torch import nn
-from itertools import zip_longest
-from functools import cache
-from pathlib import Path
-from torch import Tensor
-from torch.optim.optimizer import Optimizer
-from torch.optim.lr_scheduler import _LRScheduler as Scheduler
-from torch.utils.data import DataLoader
-from torch.nn.utils.clip_grad import clip_grad_norm_
+import sys
+import time
 from dataclasses import asdict, dataclass, replace
+from functools import cache
+from itertools import zip_longest
+from pathlib import Path
 from typing import Any, Protocol, TypeVar, overload
+
+import humanize
+import torch
+from torch import Tensor, nn
+from torch.nn.utils.clip_grad import clip_grad_norm_
+from torch.optim.lr_scheduler import _LRScheduler as Scheduler
+from torch.optim.optimizer import Optimizer
+from torch.utils.data import DataLoader
+
+from .config import Config
+from .logging import setup_logging
+from .utils import flatten_dict
 
 _logger = logging.getLogger(__name__)
 
@@ -24,10 +28,6 @@ T = TypeVar("T")
 Model = TypeVar("Model", bound=nn.Module)
 Model_co = TypeVar("Model_co", bound=nn.Module, covariant=True)
 Model_contra = TypeVar("Model_contra", bound=nn.Module, contravariant=True)
-
-from .utils import flatten_dict
-from .config import Config
-from .logging import setup_logging
 
 
 @dataclass
