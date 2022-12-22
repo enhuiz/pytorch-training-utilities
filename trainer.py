@@ -354,28 +354,39 @@ def train(
             torch.cuda.synchronize()
             start_time = time.time()
 
-            maybe_loss_stats = train_step(
-                model=model,
-                batch=batch,
-                state=state,
-                optimizer_idx=optimizer_idx,
-            )
+            try:
+                maybe_loss_stats = train_step(
+                    model=model,
+                    batch=batch,
+                    state=state,
+                    optimizer_idx=optimizer_idx,
+                )
 
-            if maybe_loss_stats is None:
-                # Here we allow skip optimizers. It's useful when, for example,
-                # skipping discriminators in the begining of GAN training.
-                continue
+                if maybe_loss_stats is None:
+                    # Here we allow skip optimizers. It's useful when, for example,
+                    # skipping discriminators in the begining of GAN training.
+                    continue
 
-            loss, stats = maybe_loss_stats
+                loss, stats = maybe_loss_stats
 
-            optimizer.zero_grad()
-            loss.backward()
-            grad_norm = clip_grad_norm_(
-                [p for g in optimizer.param_groups for p in g["params"]],
-                max_norm=cfg.max_grad_norm or 1e9,
-            )
-            optimizer.step()
-            scheduler.step()
+                optimizer.zero_grad()
+                loss.backward()
+                grad_norm = clip_grad_norm_(
+                    [p for g in optimizer.param_groups for p in g["params"]],
+                    max_norm=cfg.max_grad_norm or 1e9,
+                )
+                optimizer.step()
+                scheduler.step()
+            except RuntimeError as e:
+                if "out of memory" in str(e) and cfg.save_when_oom:
+                    model_saver(
+                        path=cfg.ckpt_path,
+                        model=model,
+                        state=state,
+                        optimizers=optimizers,
+                        schedulers=schedulers,
+                    )
+                raise e
 
             torch.cuda.synchronize()
             elapsed_time = time.time() - start_time

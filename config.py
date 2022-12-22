@@ -23,6 +23,7 @@ class Config:
     ckpt_every: int | None = None
     eval_every: int = 1_000
     save_artifacts_every: int | None = 100
+    save_when_oom: bool = True
 
     @property
     def cfg_relpath(self):
