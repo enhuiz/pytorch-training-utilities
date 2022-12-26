@@ -378,7 +378,7 @@ def train(
                 optimizer.step()
                 scheduler.step()
             except RuntimeError as e:
-                if "out of memory" in str(e) and cfg.save_when_oom:
+                if "out of memory" in str(e) and cfg.save_on_oom:
                     model_saver(
                         path=cfg.ckpt_path,
                         model=model,
@@ -444,8 +444,13 @@ def train(
                 remaining_time = int(remaining_iters * total_elapsed_time)
                 _logger.info(humanize.precisedelta(remaining_time))
 
-            ckpt_every = cfg.ckpt_every or cfg.eval_every
-            if state.iteration % ckpt_every == 0 or command in ["save", "quit"]:
+            save_every = cfg.save_model_every or cfg.eval_every
+
+            saving_commands = ["save"]
+            if cfg.save_on_quit:
+                saving_commands.append("quit")
+
+            if state.iteration % save_every == 0 or command in saving_commands:
                 cfg.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
                 model_saver(
                     path=cfg.ckpt_path,

@@ -20,10 +20,12 @@ class Config:
     max_iter: int = 100_000
     max_grad_norm: float | None = None
 
-    ckpt_every: int | None = None
     eval_every: int = 1_000
     save_artifacts_every: int | None = 100
-    save_when_oom: bool = True
+    save_model_every: int | None = None
+
+    save_on_oom: bool = True
+    save_on_quit: bool = True
 
     @property
     def cfg_relpath(self):
