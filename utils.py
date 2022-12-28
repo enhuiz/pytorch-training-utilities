@@ -39,3 +39,26 @@ def dispatch_attribute(
     for _, module in _get_named_modules(module, attrname):
         if filter_fn is None or filter_fn(module):
             setattr(module, attrname, value)
+
+
+def load_state_dict_non_strict(model, state_dict):
+    model_state_dict = model.state_dict()
+    provided = set(state_dict)
+    required = set(model_state_dict)
+    agreed = provided & required
+    for k in list(agreed):
+        if model_state_dict[k].shape != state_dict[k].shape:
+            agreed.remove(k)
+            provided.remove(k)
+    state_dict = {k: state_dict[k] for k in agreed}
+    if diff := provided - required:
+        _logger.warning(
+            f"Extra parameters are found. "
+            f"Provided but not required parameters: \n{diff}."
+        )
+    if diff := required - provided:
+        _logger.warning(
+            f"Some parameters are missing. "
+            f"Required but not provided parameters: \n{diff}."
+        )
+    model.load_state_dict(state_dict, strict=False)

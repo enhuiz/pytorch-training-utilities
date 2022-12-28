@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 
 from .config import Config
 from .logging import setup_logging
-from .utils import flatten_dict
+from .utils import flatten_dict, load_state_dict_non_strict
 
 _logger = logging.getLogger(__name__)
 
@@ -76,29 +76,6 @@ def setup(cfg: Config):
     # Config logging
     setup_logging(cfg.log_dir)
     _logger.info(cfg)
-
-
-def load_state_dict_non_strict(model, state_dict):
-    model_state_dict = model.state_dict()
-    provided = set(state_dict)
-    required = set(model_state_dict)
-    agreed = provided & required
-    for k in list(agreed):
-        if model_state_dict[k].shape != state_dict[k].shape:
-            agreed.remove(k)
-            provided.remove(k)
-    state_dict = {k: state_dict[k] for k in agreed}
-    if diff := provided - required:
-        _logger.warning(
-            f"Extra parameters are found. "
-            f"Provided but not required parameters: \n{diff}."
-        )
-    if diff := required - provided:
-        _logger.warning(
-            f"Some parameters are missing. "
-            f"Required but not provided parameters: \n{diff}."
-        )
-    model.load_state_dict(state_dict, strict=False)
 
 
 @cache
