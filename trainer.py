@@ -90,7 +90,7 @@ def load_model(path: Path | str, model: Model, strict=True) -> tuple[Model, Stat
         if strict:
             model.load_state_dict(ckpt["model"])
         else:
-            load_state_dict_non_strict(model, ckpt["model"])
+            load_state_dict_non_strict(model, ckpt["model"], logger=_logger)
         state = State(**ckpt["state"])
         _logger.info(f"{path} loaded.")
     else:

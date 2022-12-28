@@ -41,7 +41,7 @@ def dispatch_attribute(
             setattr(module, attrname, value)
 
 
-def load_state_dict_non_strict(model, state_dict):
+def load_state_dict_non_strict(model, state_dict, logger=None):
     model_state_dict = model.state_dict()
     provided = set(state_dict)
     required = set(model_state_dict)
@@ -51,13 +51,13 @@ def load_state_dict_non_strict(model, state_dict):
             agreed.remove(k)
             provided.remove(k)
     state_dict = {k: state_dict[k] for k in agreed}
-    if diff := provided - required:
-        _logger.warning(
+    if logger is not None and (diff := provided - required):
+        logger.warning(
             f"Extra parameters are found. "
             f"Provided but not required parameters: \n{diff}."
         )
-    if diff := required - provided:
-        _logger.warning(
+    if logger is not None and (diff := required - provided):
+        logger.warning(
             f"Some parameters are missing. "
             f"Required but not provided parameters: \n{diff}."
         )
