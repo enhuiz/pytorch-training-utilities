@@ -129,7 +129,8 @@ class Engines(nn.ModuleDict):
                 engine.backward(loss)
 
                 # For monitoring purpose
-                grad_norm = clip_grad_norm_(engine.parameters(), max_norm=1e9)
+                grads = [p.grad for p in engine.parameters() if p.grad is not None]
+                grad_norm = torch.stack([g.detach().norm() for g in grads]).norm()
 
                 engine.step()
             except RuntimeError as e:
