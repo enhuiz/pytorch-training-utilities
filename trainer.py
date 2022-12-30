@@ -31,9 +31,7 @@ def get_cfg():
     try:
         return _engines.cfg
     except:
-        raise RuntimeError(
-            "Trainer has not been setup, please call trainer.setup() first."
-        )
+        raise RuntimeError("Trainer has not been setup. Have you called trainer.train?")
 
 
 get_iteration = get_global_step
