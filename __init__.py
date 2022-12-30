@@ -5,4 +5,5 @@ from .utils import (
     gather_attribute,
     load_state_dict_non_strict,
     setup_logging,
+    to_device,
 )

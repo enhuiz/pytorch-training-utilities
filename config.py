@@ -71,11 +71,16 @@ class Config:
         with open(path, "w") as f:
             f.write(self.dumps())
 
+    @staticmethod
+    def _is_cfg_argv(s):
+        return "=" in s and "--" not in s
+
     @classmethod
     def from_cli(cls):
-        cli_cfg = OmegaConf.from_cli([s for s in sys.argv if "=" in s])
+        cli_cfg = OmegaConf.from_cli([s for s in sys.argv if cls._is_cfg_argv(s)])
+
         # Replace argv to ensure there are no omegaconf options, for compatibility with argparse.
-        sys.argv = [s for s in sys.argv if "=" not in s]
+        sys.argv = [s for s in sys.argv if not cls._is_cfg_argv(s)]
 
         if cli_cfg.get("help"):
             print(f"Configurable hyperparameters with their default values:")

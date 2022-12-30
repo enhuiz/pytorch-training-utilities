@@ -4,33 +4,44 @@ from typing import Any, Protocol
 
 import torch
 from deepspeed import DeepSpeedEngine
-from torch import Tensor
+from torch import Tensor, nn
 from torch.nn.utils.clip_grad import clip_grad_norm_
 
 from .config import Config
+from .distributed import is_local_leader
 from .utils import flatten_dict
+
+Stats = dict[str, float]
 
 _logger = logging.getLogger(__name__)
 
-StepStats = dict[str, float]
+
+class Engine(DeepSpeedEngine):
+    def __init__(self, *args, **kwargs):
+        super().__init__(None, *args, **kwargs)
+
+    @property
+    def global_step(self):
+        return self.global_steps
 
 
 class TrainStepFn(Protocol):
     def __call__(
         self,
         *,
-        engine: DeepSpeedEngine,
+        engines: "Engines",
         batch: Any,
         name: str,
-    ) -> None | tuple[Tensor, StepStats]:
+    ) -> None | tuple[Tensor, Stats]:
         ...
 
 
-class Engines(dict[str, DeepSpeedEngine]):
+class Engines(nn.ModuleDict):
     def setup(self, cfg: Config):
         self._cfg = cfg
-        cfg.dump()
-        _logger.info(cfg)
+        if is_local_leader():
+            cfg.dump()
+            _logger.info(cfg)
 
     @property
     def cfg(self):
@@ -44,7 +55,7 @@ class Engines(dict[str, DeepSpeedEngine]):
     def global_step(self):
         values = set()
         for engine in self.values():
-            values.add(engine.global_steps)
+            values.add(engine.global_step)
         if len(values) > 1:
             raise ValueError(
                 "Multiple global steps detected, maybe errors in the checkpoints?"
@@ -80,7 +91,7 @@ class Engines(dict[str, DeepSpeedEngine]):
             start_time = time.time()
 
             try:
-                maybe_loss_substats = fn(engine=engine, batch=batch, name=name)
+                maybe_loss_substats = fn(engines=self, batch=batch, name=name)
 
                 if maybe_loss_substats is None:
                     # Here we allow skip optimizers. It's useful when, for example,

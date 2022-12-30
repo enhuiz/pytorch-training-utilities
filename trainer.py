@@ -8,11 +8,12 @@ from typing import Protocol
 
 import humanize
 import torch
-from deepspeed import DeepSpeedEngine
+from torch import nn
 from torch.utils.data import DataLoader
 
 from .config import Config
-from .engines import Engines, TrainStepFn
+from .distributed import local_leader_only
+from .engines import Engine, Engines, TrainStepFn
 
 _logger = logging.getLogger(__name__)
 _engines: Engines
@@ -42,8 +43,8 @@ class EnginesLoader(Protocol):
         ...
 
 
-def load_engines(engines: dict[str, DeepSpeedEngine], config: Config):
-    engines = Engines(engines)
+def load_engines(engines: dict[str, Engine] | nn.ModuleDict, config: Config):
+    engines = Engines({**engines})
     engines.setup(config)
     engines.load_checkpoint()
     return engines
@@ -83,12 +84,17 @@ def _make_infinite_epochs(dl):
         yield from dl
 
 
+@local_leader_only
+def logger(data):
+    return _logger.info(json.dumps(data, indent=2, default=str))
+
+
 def train(
     engines_loader: EnginesLoader,
     train_dl: DataLoader,
     train_step_fn: TrainStepFn,
     eval_fn: EvalFn,
-    logger: Logger = lambda data: _logger.info(json.dumps(data, indent=2, default=str)),
+    logger: Logger = logger,
 ):
     # Set up random seeds
     random.seed(0)
