@@ -50,7 +50,7 @@ class Engines(dict[str, Engine]):
             _logger.info(cfg)
 
     @property
-    def cfg(self):
+    def cfg(self) -> Config:
         return self._cfg
 
     @property
@@ -72,17 +72,14 @@ class Engines(dict[str, Engine]):
             engine.dispatch_attribute(*args, **kwargs)
 
     def save_checkpoint(self, tag="default"):
-        self.cfg.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+        self.cfg.ckpt_dir.mkdir(parents=True, exist_ok=True)
         for name, engine in self.items():
-            engine.save_checkpoint(
-                self.cfg.ckpt_path / f"engine-{name}",
-                tag=tag,
-            )
+            engine.save_checkpoint(self.cfg.ckpt_dir / name, tag=tag)
 
     def load_checkpoint(self, tag=None, strict=False):
         for name, engine in self.items():
             engine.load_checkpoint(
-                self.cfg.ckpt_path / f"engine-{name}",
+                self.cfg.ckpt_dir / name,
                 tag=tag,
                 load_module_strict=strict,
             )

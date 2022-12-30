@@ -32,7 +32,7 @@ class Config:
         return Path(self.cfg_name)
 
     @property
-    def ckpt_path(self):
+    def ckpt_dir(self):
         return (self.ckpt_root / self.cfg_relpath).with_suffix(".ckpt")
 
     @property
