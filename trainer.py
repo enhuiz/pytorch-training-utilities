@@ -9,10 +9,11 @@ from typing import Protocol
 import humanize
 import torch
 from torch import nn
+from torch.distributed import broadcast_object_list
 from torch.utils.data import DataLoader
 
 from .config import Config
-from .distributed import global_leader_only, local_leader_only
+from .distributed import global_leader_only, is_global_leader, local_leader_only
 from .engines import Engine, Engines, TrainStepFn
 
 _logger = logging.getLogger(__name__)
@@ -68,14 +69,17 @@ def _get_stdin_selector():
 
 
 def _non_blocking_input():
-    s = ""
-    selector = _get_stdin_selector()
-    events = selector.select(timeout=0)
-    for key, _ in events:
-        s = key.fileobj.readline().strip()
-        _logger.info(f'Get stdin "{s}".')
-    shared = [s]
-    return shared[0]
+    l = [None]
+    if is_global_leader():
+        s = ""
+        selector = _get_stdin_selector()
+        events = selector.select(timeout=0)
+        for key, _ in events:
+            s = key.fileobj.readline().strip()
+            _logger.info(f'Get stdin "{s}".')
+        l[0] = s
+    l = boardcast_object_list(l, src=0, device="cpu")
+    return l[0]
 
 
 def _make_infinite_epochs(dl):
@@ -124,7 +128,7 @@ def train(
             break
 
         stats = engines.step(fn=train_step_fn, batch=batch)
-        total_elapsed_time = stats.get("total_elapsed_time", 0)
+        elapsed_time = stats.get("elapsed_time", 0)
         logger(data=stats)
 
         command = _non_blocking_input()
@@ -158,7 +162,7 @@ def train(
                     except Exception as e:
                         _logger.error(e)
                 remaining_iters = target_iter - engines.global_step + 1
-                remaining_time = int(remaining_iters * total_elapsed_time)
+                remaining_time = int(remaining_iters * elapsed_time)
                 _logger.info(humanize.precisedelta(remaining_time))
 
             save_every = cfg.save_model_every or cfg.eval_every
