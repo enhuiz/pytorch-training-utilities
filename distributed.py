@@ -32,26 +32,34 @@ def is_global_leader():
     return global_rank() == 0
 
 
-def local_leader_only(f):
-    @wraps(f)
-    def wrapped(*args, **kwargs):
-        if is_local_leader():
-            return f(*args, **kwargs)
+def local_leader_only(default=None):
+    def wrapper(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if is_local_leader():
+                return f(*args, **kwargs)
+            return default
 
-    return wrapped
+        return wrapped
+
+    return wrapper
 
 
-def global_leader_only(f):
-    @wraps(f)
-    def wrapped(*args, **kwargs):
-        if is_global_leader():
-            return f(*args, **kwargs)
+def global_leader_only(default=None):
+    def wrapper(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if is_global_leader():
+                return f(*args, **kwargs)
+            return default
 
-    return wrapped
+        return wrapped
+
+    return wrapper
 
 
 def nondistributed(f):
-    @global_leader_only
+    @global_leader_only()
     @wraps(f)
     def wrapped(*args, **kwargs):
         # https://github.com/microsoft/DeepSpeed/blob/b47e25bf95250a863edb2c466200c697e15178fd/deepspeed/utils/distributed.py#L34

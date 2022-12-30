@@ -12,7 +12,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from .config import Config
-from .distributed import local_leader_only
+from .distributed import global_leader_only, local_leader_only
 from .engines import Engine, Engines, TrainStepFn
 
 _logger = logging.getLogger(__name__)
@@ -67,6 +67,7 @@ def _get_stdin_selector():
     return selector
 
 
+@global_leader_only(default="")
 def _non_blocking_input():
     s = ""
     selector = _get_stdin_selector()
@@ -84,7 +85,7 @@ def _make_infinite_epochs(dl):
         yield from dl
 
 
-@local_leader_only
+@local_leader_only(default=None)
 def logger(data):
     return _logger.info(json.dumps(data, indent=2, default=str))
 
