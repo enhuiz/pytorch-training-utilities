@@ -4,4 +4,5 @@ from .utils import (
     flatten_dict,
     gather_attribute,
     load_state_dict_non_strict,
+    setup_logging,
 )

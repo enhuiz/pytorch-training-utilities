@@ -42,8 +42,9 @@ class EnginesLoader(Protocol):
         ...
 
 
-def load_engines(engines: dict[str, DeepSpeedEngine]):
+def load_engines(engines: dict[str, DeepSpeedEngine], config: Config):
     engines = Engines(engines)
+    engines.setup(config)
     engines.load_checkpoint()
     return engines
 
@@ -87,17 +88,14 @@ def train(
     train_dl: DataLoader,
     train_step_fn: TrainStepFn,
     eval_fn: EvalFn,
-    config: Config,
     logger: Logger = lambda data: _logger.info(json.dumps(data, indent=2, default=str)),
 ):
-    cfg = config
-
     # Set up random seeds
     random.seed(0)
     torch.manual_seed(0)
 
     engines = engine_loader()
-    engines.setup(cfg)
+    cfg = engines.cfg
 
     # Setup global engines
     global _engines

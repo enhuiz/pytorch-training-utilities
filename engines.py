@@ -8,7 +8,7 @@ from torch import Tensor
 from torch.nn.utils.clip_grad import clip_grad_norm_
 
 from .config import Config
-from .utils import flatten_dict, setup_logging
+from .utils import flatten_dict
 
 _logger = logging.getLogger(__name__)
 
@@ -29,15 +29,15 @@ class TrainStepFn(Protocol):
 class Engines(dict[str, DeepSpeedEngine]):
     def setup(self, cfg: Config):
         self._cfg = cfg
-        # Dump cfg
         cfg.dump()
-
-        # Config logging
-        setup_logging(cfg.log_dir)
         _logger.info(cfg)
 
     @property
     def cfg(self):
+        return self._cfg
+
+    @property
+    def config(self):
         return self._cfg
 
     @property
