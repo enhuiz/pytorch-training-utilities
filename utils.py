@@ -8,6 +8,8 @@ import pandas as pd
 from coloredlogs import ColoredFormatter
 from torch import Tensor, nn
 
+from .distributed import global_rank, local_rank
+
 T = TypeVar("T")
 
 
@@ -27,7 +29,10 @@ def gather_attribute(module, attrname, delete=True, prefix=True):
     for name, module in _get_named_modules(module, attrname):
         ret[name] = getattr(module, attrname)
         if delete:
-            delattr(module, attrname)
+            try:
+                delattr(module, attrname)
+            except Exception as e:
+                raise RuntimeError(f"{name} {module} {attrname}") from e
     if prefix:
         ret = {attrname: ret}
     ret = flatten_dict(ret)
@@ -75,7 +80,7 @@ def setup_logging(log_dir: str | Path | None = "log", log_level="info"):
     stdout_handler = StreamHandler()
     stdout_handler.setLevel(logging.INFO)
     formatter = ColoredFormatter(
-        "%(asctime)s - %(name)s - %(levelname)s - \n%(message)s"
+        f"%(asctime)s - %(name)s - %(levelname)s - GR={global_rank()};LR={local_rank()} - \n%(message)s"
     )
     stdout_handler.setFormatter(formatter)
     handlers.append(stdout_handler)
