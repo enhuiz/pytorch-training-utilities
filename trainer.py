@@ -84,7 +84,7 @@ def _make_infinite_epochs(dl):
 
 
 def train(
-    engine_loader: EnginesLoader,
+    engines_loader: EnginesLoader,
     train_dl: DataLoader,
     train_step_fn: TrainStepFn,
     eval_fn: EvalFn,
@@ -94,7 +94,7 @@ def train(
     random.seed(0)
     torch.manual_seed(0)
 
-    engines = engine_loader()
+    engines = engines_loader()
     cfg = engines.cfg
 
     # Setup global engines
