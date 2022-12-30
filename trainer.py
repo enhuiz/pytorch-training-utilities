@@ -19,8 +19,7 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
 from .config import Config
-from .logging import setup_logging
-from .utils import flatten_dict, load_state_dict_non_strict
+from .utils import flatten_dict, load_state_dict_non_strict, setup_logging
 
 _logger = logging.getLogger(__name__)
 
