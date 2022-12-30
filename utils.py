@@ -2,11 +2,13 @@ import logging
 import re
 from logging import StreamHandler
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TypeVar, overload
 
 import pandas as pd
 from coloredlogs import ColoredFormatter
-from torch import nn
+from torch import Tensor, nn
+
+T = TypeVar("T")
 
 
 def flatten_dict(d):
@@ -88,3 +90,28 @@ def setup_logging(log_dir: str | Path | None = "log", log_level="info"):
         format="%(asctime)s - %(name)s - %(levelname)s - \n%(message)s",
         handlers=handlers,
     )
+
+
+@overload
+def to_device(x: list[T], device: str) -> list[T]:
+    ...
+
+
+@overload
+def to_device(x: dict[str, T], device: str) -> dict[str, T]:
+    ...
+
+
+@overload
+def to_device(x: T, device: str) -> T:
+    ...
+
+
+def to_device(x, device):
+    if isinstance(x, list):
+        x = [to_device(xi, device) for xi in x]
+    elif isinstance(x, dict):
+        x = {k: to_device(v, device) for k, v in x.items()}
+    elif isinstance(x, Tensor):
+        x = x.to(device)
+    return x

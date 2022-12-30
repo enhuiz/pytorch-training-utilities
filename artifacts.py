@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.markers import MarkerStyle
 
+from .distributed import is_local_leader
 from .trainer import get_cfg, get_iteration
 
 
@@ -16,7 +17,8 @@ def is_saving():
         return False
 
     return (
-        cfg is not None
+        is_local_leader()
+        and cfg is not None
         and cfg.save_artifacts_every is not None
         and itr is not None
         and (itr % cfg.save_artifacts_every == 0 or itr == 1)
