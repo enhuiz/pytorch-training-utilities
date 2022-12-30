@@ -67,7 +67,6 @@ def _get_stdin_selector():
     return selector
 
 
-@global_leader_only(default="")
 def _non_blocking_input():
     s = ""
     selector = _get_stdin_selector()
