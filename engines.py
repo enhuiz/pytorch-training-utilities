@@ -4,8 +4,7 @@ from typing import Any, Protocol
 
 import torch
 from deepspeed import DeepSpeedEngine
-from torch import Tensor, nn
-from torch.nn.utils.clip_grad import clip_grad_norm_
+from torch import Tensor
 
 from .config import Config
 from .distributed import is_local_leader
@@ -42,9 +41,10 @@ class TrainStepFn(Protocol):
         ...
 
 
-class Engines(nn.ModuleDict):
+class Engines(dict[str, Engine]):
     def setup(self, cfg: Config):
         self._cfg = cfg
+        self._global_step = 0
         if is_local_leader():
             cfg.dump()
             _logger.info(cfg)
@@ -59,31 +59,21 @@ class Engines(nn.ModuleDict):
 
     @property
     def global_step(self):
-        values = set()
-        for engine in self.values():
-            values.add(engine.global_step)
-        if len(values) > 1:
-            raise ValueError(
-                "Multiple global steps detected, maybe errors in the checkpoints?"
-            )
-        return next(iter(values))
+        return self._global_step
 
     def gather_attribute(self, *args, **kwargs):
         ret = {}
         for engine in self.values():
-            assert isinstance(engine, Engine)
             ret |= engine.gather_attribute(*args, **kwargs)
         return ret
 
     def dispatch_attribute(self, *args, **kwargs):
         for engine in self.values():
-            assert isinstance(engine, Engine)
             engine.dispatch_attribute(*args, **kwargs)
 
     def save_checkpoint(self, tag="default"):
         self.cfg.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
         for name, engine in self.items():
-            assert isinstance(engine, Engine)
             engine.save_checkpoint(
                 self.cfg.ckpt_path / f"engine-{name}",
                 tag=tag,
@@ -91,12 +81,16 @@ class Engines(nn.ModuleDict):
 
     def load_checkpoint(self, tag=None, strict=False):
         for name, engine in self.items():
-            assert isinstance(engine, Engine)
             engine.load_checkpoint(
                 self.cfg.ckpt_path / f"engine-{name}",
                 tag=tag,
                 load_module_strict=strict,
             )
+        self._update_global_step()
+
+    def _update_global_step(self):
+        for engine in self.values():
+            self._global_step = max(self._global_step, engine.global_step)
 
     def eval(self):
         for engine in self.values():
@@ -108,11 +102,10 @@ class Engines(nn.ModuleDict):
 
     def step(self, fn: TrainStepFn, batch):
         total_elapsed_time = 0
-        stats: Any = dict(global_step=self.global_step)
+
+        stats: Any = dict()
 
         for name, engine in self.items():
-            assert isinstance(engine, Engine)
-
             torch.cuda.synchronize()
             start_time = time.time()
 
@@ -150,13 +143,16 @@ class Engines(nn.ModuleDict):
                             lr=engine.get_lr()[0],
                             grad_norm=grad_norm.item(),
                             elapsed_time=elapsed_time,
+                            engine_step=engine.global_step,
                             **substats,
                         )
                     }
                 ),
             )
 
+        self._update_global_step()
         stats["elapsed_time"] = total_elapsed_time
         stats["wall_time"] = time.time()
+        stats["global_step"] = self.global_step
 
         return stats
