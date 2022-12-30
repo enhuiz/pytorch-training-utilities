@@ -80,18 +80,22 @@ class Engines(nn.ModuleDict):
             assert isinstance(engine, Engine)
             engine.dispatch_attribute(*args, **kwargs)
 
-    def save_checkpoint(self):
+    def save_checkpoint(self, tag="default"):
         self.cfg.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
         for name, engine in self.items():
             assert isinstance(engine, Engine)
-            engine.save_checkpoint(self.cfg.ckpt_path / f"engine-{name}")
+            engine.save_checkpoint(
+                self.cfg.ckpt_path / f"engine-{name}",
+                tag=tag,
+            )
 
-    def load_checkpoint(self):
+    def load_checkpoint(self, tag="default", strict=False):
         for name, engine in self.items():
             assert isinstance(engine, Engine)
             engine.load_checkpoint(
                 self.cfg.ckpt_path / f"engine-{name}",
-                load_module_strict=False,
+                tag=tag,
+                load_module_strict=strict,
             )
 
     def eval(self):
