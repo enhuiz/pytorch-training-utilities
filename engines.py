@@ -89,7 +89,7 @@ class Engines(nn.ModuleDict):
                 tag=tag,
             )
 
-    def load_checkpoint(self, tag="default", strict=False):
+    def load_checkpoint(self, tag=None, strict=False):
         for name, engine in self.items():
             assert isinstance(engine, Engine)
             engine.load_checkpoint(

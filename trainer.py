@@ -13,8 +13,9 @@ from torch.distributed import broadcast_object_list
 from torch.utils.data import DataLoader
 
 from .config import Config
-from .distributed import global_leader_only, is_global_leader, local_leader_only
+from .distributed import is_global_leader, local_leader_only
 from .engines import Engine, Engines, TrainStepFn
+from .utils import to_device
 
 _logger = logging.getLogger(__name__)
 _engines: Engines
@@ -67,13 +68,13 @@ def _get_stdin_selector():
 
 
 def _non_blocking_input():
-    l = [None]
+    l = [""]
     if is_global_leader():
         s = ""
         selector = _get_stdin_selector()
         events = selector.select(timeout=0)
         for key, _ in events:
-            s = key.fileobj.readline().strip()
+            s: str = key.fileobj.readline().strip()
             _logger.info(f'Get stdin "{s}".')
         l[0] = s
     broadcast_object_list(l, src=0)
@@ -125,6 +126,7 @@ def train(
         if engines.global_step >= cfg.max_iter:
             break
 
+        batch = to_device(batch, torch.cuda.current_device())
         stats = engines.step(fn=train_step_fn, batch=batch)
         elapsed_time = stats.get("elapsed_time", 0)
         logger(data=stats)
