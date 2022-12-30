@@ -8,12 +8,11 @@ from typing import Protocol
 
 import humanize
 import torch
-from torch import nn
 from torch.distributed import broadcast_object_list
 from torch.utils.data import DataLoader
 
 from .config import Config
-from .distributed import is_global_leader, local_leader_only
+from .distributed import global_leader_only, is_global_leader, local_leader_only
 from .engines import Engine, Engines, TrainStepFn
 from .utils import to_device
 
@@ -43,8 +42,8 @@ class EnginesLoader(Protocol):
         ...
 
 
-def load_engines(engines: dict[str, Engine] | nn.ModuleDict, config: Config):
-    engines = Engines({**engines})
+def load_engines(engines: dict[str, Engine], config: Config):
+    engines = Engines(engines)
     engines.setup(config)
     engines.load_checkpoint()
     return engines
@@ -111,6 +110,8 @@ def train(
     _engines = engines
 
     events = []
+
+    eval_fn = global_leader_only()(eval_fn)
 
     # Pre-loop command
     command = _non_blocking_input()
