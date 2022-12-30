@@ -4,7 +4,6 @@ This is my set of PyTorch training utilities. Interfaces may change rapidly. Don
 
 To launch, you need to run the following:
 
-````
+```
 deepspeed <your-entry>.py
 ```
-````
