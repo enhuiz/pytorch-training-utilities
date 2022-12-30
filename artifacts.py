@@ -21,7 +21,7 @@ def is_saving():
         and cfg is not None
         and cfg.save_artifacts_every is not None
         and itr is not None
-        and (itr % cfg.save_artifacts_every == 0 or itr == 1)
+        and (itr % cfg.save_artifacts_every == 0)
     )
 
 
