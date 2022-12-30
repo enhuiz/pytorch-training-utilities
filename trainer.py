@@ -78,7 +78,7 @@ def _non_blocking_input():
             s = key.fileobj.readline().strip()
             _logger.info(f'Get stdin "{s}".')
         l[0] = s
-    l = boardcast_object_list(l, src=0, device="cpu")
+    l = broadcast_object_list(l, src=0, device="cpu")
     return l[0]
 
 
