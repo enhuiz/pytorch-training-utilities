@@ -9,7 +9,7 @@ from torch.nn.utils.clip_grad import clip_grad_norm_
 
 from .config import Config
 from .distributed import is_local_leader
-from .utils import flatten_dict
+from .utils import dispatch_attribute, flatten_dict, gather_attribute
 
 Stats = dict[str, float]
 
@@ -23,6 +23,12 @@ class Engine(DeepSpeedEngine):
     @property
     def global_step(self):
         return self.global_steps
+
+    def gather_attribute(self, *args, **kwargs):
+        return gather_attribute(self.module, *args, **kwargs)
+
+    def dispatch_attribute(self, *args, **kwargs):
+        return dispatch_attribute(self.module, *args, **kwargs)
 
 
 class TrainStepFn(Protocol):
@@ -62,13 +68,27 @@ class Engines(nn.ModuleDict):
             )
         return next(iter(values))
 
+    def gather_attribute(self, *args, **kwargs):
+        ret = {}
+        for engine in self.values():
+            assert isinstance(engine, Engine)
+            ret |= engine.gather_attribute(*args, **kwargs)
+        return ret
+
+    def dispatch_attribute(self, *args, **kwargs):
+        for engine in self.values():
+            assert isinstance(engine, Engine)
+            engine.dispatch_attribute(*args, **kwargs)
+
     def save_checkpoint(self):
         self.cfg.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
         for name, engine in self.items():
+            assert isinstance(engine, Engine)
             engine.save_checkpoint(self.cfg.ckpt_path / f"engine-{name}")
 
     def load_checkpoint(self):
         for name, engine in self.items():
+            assert isinstance(engine, Engine)
             engine.load_checkpoint(
                 self.cfg.ckpt_path / f"engine-{name}",
                 load_module_strict=False,
@@ -87,6 +107,8 @@ class Engines(nn.ModuleDict):
         stats: Any = dict(global_step=self.global_step)
 
         for name, engine in self.items():
+            assert isinstance(engine, Engine)
+
             torch.cuda.synchronize()
             start_time = time.time()
 
@@ -120,7 +142,7 @@ class Engines(nn.ModuleDict):
                     {
                         name: dict(
                             loss=loss.item(),
-                            lr=engine.get_lr(),
+                            lr=engine.get_lr()[0],
                             grad_norm=grad_norm.item(),
                             elapsed_time=elapsed_time,
                             **substats,
