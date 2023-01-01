@@ -37,7 +37,7 @@ class Config:
 
     @property
     def ckpt_dir(self):
-        return (self.ckpt_root / self.relpath).with_suffix(".ckpt")
+        return self.ckpt_root / self.relpath
 
     @property
     def log_dir(self):
