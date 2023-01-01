@@ -43,11 +43,11 @@ class Diagnostic:
         for name, param in self._module.named_parameters():
 
             def hook(grad, name=name, param=param):
-                self._history[f"{name}"]["value_mean"] += param.mean().item()
-                self._history[f"{name}"]["value_var"] += param.var().item()
-                self._history[f"{name}"]["grad_mean"] += grad.mean().item()
-                self._history[f"{name}"]["grad_var"] += grad.var().item()
-                self._history[f"{name}"]["cnt"] += 1
+                self._history[name]["value_mean"] += param.mean().item()
+                self._history[name]["value_var"] += param.var().item()
+                self._history[name]["grad_mean"] += grad.mean().item()
+                self._history[name]["grad_var"] += grad.var().item()
+                self._history[name]["cnt"] += 1
 
             self._handlers.append(param.register_hook(hook))
 
