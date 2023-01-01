@@ -15,6 +15,20 @@ class Diagnostic:
         self._handlers = []
         self._history = defaultdict(lambda: defaultdict(lambda: 0.0))
 
+    def _accumulate(self, name, value):
+        if value.dim() == 0:
+            value = value[None, None]
+        elif value.dim() == 1:
+            value = value[None]
+        else:
+            value = value.flatten(1)
+
+        self._history[name]["min"] += value.min(1).values.mean().item()
+        self._history[name]["max"] += value.max(1).values.mean().item()
+        self._history[name]["mean"] += value.mean().item()
+        self._history[name]["var"] += value.var(1).mean().item()
+        self._history[name]["cnt"] += 1
+
     def hook(self):
         for name, module in self._module.named_modules():
 
@@ -23,10 +37,10 @@ class Diagnostic:
                     o = (o,)
 
                 for i, oi in enumerate(o):
-                    if oi is not None:
-                        self._history[f"{name}_{i}"]["value_mean"] += oi.mean().item()
-                        self._history[f"{name}_{i}"]["value_var"] += oi.var().item()
-                        self._history[f"{name}_{i}"]["cnt"] += 1
+                    if oi is None:
+                        continue
+
+                    self._accumulate(f"{name}/out_{i}", oi)
 
             self._handlers.append(module.register_forward_hook(forward_hook))
 
@@ -35,10 +49,10 @@ class Diagnostic:
                     o = (o,)
 
                 for i, oi in enumerate(o):
-                    if oi is not None:
-                        self._history[f"{name}_{i}"]["grad_mean"] += oi.mean().item()
-                        self._history[f"{name}_{i}"]["grad_var"] += oi.var().item()
-                        self._history[f"{name}_{i}"]["cnt"] += 1
+                    if oi is None:
+                        continue
+
+                    self._accumulate(f"{name}/grad_{i}", oi)
 
             self._handlers.append(module.register_full_backward_hook(backward_hook))
 
@@ -47,11 +61,8 @@ class Diagnostic:
                 continue
 
             def hook(grad, name=name, param=param):
-                self._history[name]["value_mean"] += param.mean().item()
-                self._history[name]["value_var"] += param.var().item()
-                self._history[name]["grad_mean"] += grad.mean().item()
-                self._history[name]["grad_var"] += grad.var().item()
-                self._history[name]["cnt"] += 1
+                self._accumulate(f"{name}/param", param)
+                self._accumulate(f"{name}/grad", grad)
 
             self._handlers.append(param.register_hook(hook))
 
