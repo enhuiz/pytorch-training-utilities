@@ -30,6 +30,10 @@ class Diagnostic:
         self._history[name]["cnt"] += 1
 
     def hook(self):
+        # If not released, don't hook
+        if len(self._handlers) > 0:
+            return
+
         for name, module in self._module.named_modules():
 
             def forward_hook(m, i, o, name=name or "top"):
