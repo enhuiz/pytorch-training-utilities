@@ -28,16 +28,20 @@ class Config:
     save_on_quit: bool = True
 
     @property
-    def cfg_relpath(self):
+    def relpath(self):
         return Path(self.cfg_name)
 
     @property
+    def cfg_relpath(self):
+        return None
+
+    @property
     def ckpt_dir(self):
-        return (self.ckpt_root / self.cfg_relpath).with_suffix(".ckpt")
+        return (self.ckpt_root / self.relpath).with_suffix(".ckpt")
 
     @property
     def log_dir(self):
-        return self.log_root / self.cfg_relpath / str(self.start_time)
+        return self.log_root / self.relpath / str(self.start_time)
 
     @cached_property
     def start_time(self):
@@ -100,6 +104,10 @@ class Config:
         obj = cls(**dict(OmegaConf.merge(cls, yaml_cfg, cli_cfg)))
 
         return obj
+
+    def __post_init__(self):
+        if self.cfg_relpath is not None:
+            raise RuntimeError("cfg_relpath is deprecated.")
 
     def __repr__(self):
         return str(self)
