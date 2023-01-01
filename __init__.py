@@ -1,4 +1,5 @@
 from .config import Config
+from .diagnostic import Diagnostic
 from .utils import (
     dispatch_attribute,
     flatten_dict,

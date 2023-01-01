@@ -64,11 +64,13 @@ class Diagnostic:
         del df["cnt"]
         return df
 
+    @property
     def to_csv(self):
-        return self.dataframe.to_csv()
+        return self.dataframe.to_csv
 
+    @property
     def to_markdown(self):
-        return self.dataframe.to_markdown(floatfmt=".3g")
+        return self.dataframe.to_markdown
 
 
 if __name__ == "__main__":
