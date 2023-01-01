@@ -23,9 +23,10 @@ class Diagnostic:
                     o = (o,)
 
                 for i, oi in enumerate(o):
-                    self._history[f"{name}_{i}"]["value_mean"] += oi.mean().item()
-                    self._history[f"{name}_{i}"]["value_var"] += oi.var().item()
-                    self._history[f"{name}_{i}"]["cnt"] += 1
+                    if oi is not None:
+                        self._history[f"{name}_{i}"]["value_mean"] += oi.mean().item()
+                        self._history[f"{name}_{i}"]["value_var"] += oi.var().item()
+                        self._history[f"{name}_{i}"]["cnt"] += 1
 
             self._handlers.append(module.register_forward_hook(forward_hook))
 
@@ -34,9 +35,10 @@ class Diagnostic:
                     o = (o,)
 
                 for i, oi in enumerate(o):
-                    self._history[f"{name}_{i}"]["grad_mean"] += oi.mean().item()
-                    self._history[f"{name}_{i}"]["grad_var"] += oi.var().item()
-                    self._history[f"{name}_{i}"]["cnt"] += 1
+                    if oi is not None:
+                        self._history[f"{name}_{i}"]["grad_mean"] += oi.mean().item()
+                        self._history[f"{name}_{i}"]["grad_var"] += oi.var().item()
+                        self._history[f"{name}_{i}"]["cnt"] += 1
 
             self._handlers.append(module.register_full_backward_hook(backward_hook))
 
@@ -80,8 +82,8 @@ class Diagnostic:
 if __name__ == "__main__":
     model = nn.Linear(10, 10)
     diagnostic = Diagnostic(model)
-    diagnostic.hook()
     model.bias.requires_grad_(False)
+    diagnostic.hook()
     model(torch.randn(10)).sum().backward()
     model(torch.randn(10)).sum().backward()
     model(torch.randn(10)).sum().backward()
