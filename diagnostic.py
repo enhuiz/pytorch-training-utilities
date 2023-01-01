@@ -41,6 +41,8 @@ class Diagnostic:
             self._handlers.append(module.register_full_backward_hook(backward_hook))
 
         for name, param in self._module.named_parameters():
+            if not param.requires_grad:
+                continue
 
             def hook(grad, name=name, param=param):
                 self._history[name]["value_mean"] += param.mean().item()
@@ -79,6 +81,7 @@ if __name__ == "__main__":
     model = nn.Linear(10, 10)
     diagnostic = Diagnostic(model)
     diagnostic.hook()
+    model.bias.requires_grad_(False)
     model(torch.randn(10)).sum().backward()
     model(torch.randn(10)).sum().backward()
     model(torch.randn(10)).sum().backward()
