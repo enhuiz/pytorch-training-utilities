@@ -6,7 +6,7 @@ from collections import defaultdict
 
 import pandas as pd
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 
 class Diagnostic:
@@ -41,7 +41,7 @@ class Diagnostic:
                     o = (o,)
 
                 for i, oi in enumerate(o):
-                    if oi is None:
+                    if not isinstance(oi, Tensor):
                         continue
 
                     self._accumulate(f"{name}/out_{i}", oi)
@@ -53,7 +53,7 @@ class Diagnostic:
                     o = (o,)
 
                 for i, oi in enumerate(o):
-                    if oi is None:
+                    if not isinstance(oi, Tensor):
                         continue
 
                     self._accumulate(f"{name}/grad_{i}", oi)
