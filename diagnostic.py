@@ -62,7 +62,8 @@ class Diagnostic:
         df = pd.DataFrame(self._history).T
         for col in df.columns:
             df[col] /= df["cnt"]
-        del df["cnt"]
+        if "cnt" in df:
+            del df["cnt"]
         return df
 
     @property
