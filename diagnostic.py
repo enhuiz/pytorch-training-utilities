@@ -55,6 +55,7 @@ class Diagnostic:
         for handler in self._handlers:
             handler.remove()
         self._handlers.clear()
+        self._history.clear()
 
     @property
     def dataframe(self):
