@@ -1,6 +1,7 @@
 """
 Inspired by https://github.com/k2-fsa/icefall/blob/master/icefall/diagnostics.py
 """
+
 import logging
 from collections import defaultdict
 
@@ -16,13 +17,20 @@ _logger = logging.getLogger(__name__)
 
 
 class Diagnostic:
-    def __init__(self, module: nn.Module, tag="module", max_pca_dim=512):
+    def __init__(
+        self,
+        module: nn.Module,
+        tag="module",
+        max_pca_dim=512,
+        percentiles=np.linspace(0, 1, 10),
+    ):
         self._module = module
         self._handlers = []
         self._history: defaultdict[str, defaultdict[str, int | Tensor]]
         self._history = defaultdict(lambda: defaultdict(lambda: 0))
         self._tag = tag
         self._max_pca_dim = max_pca_dim
+        self._percentiles = percentiles
 
     @staticmethod
     def _get_type(name):
@@ -32,6 +40,7 @@ class Diagnostic:
             return "output"
         elif "param" in name:
             return "param"
+        raise NotImplementedError(name)
 
     @property
     def dataframe(self):
@@ -39,34 +48,34 @@ class Diagnostic:
         for col in df.columns:
             if col not in ["min", "max", "size"]:
                 df[col] /= df["cnt"]
+
         rows = []
 
         for stats in df.columns:
             if stats in ["size", "cnt"]:
                 continue
+
             for name, s in df.iterrows():
-                vec = s[stats]
-                if not isinstance(vec, Tensor):
-                    vec = None
+                v = s[stats]
+
+                if not isinstance(v, Tensor):
+                    v = None
+
                 rows.append(
                     dict(
                         name=name,
                         type=self._get_type(name),
                         stats=stats,
                         size=s["size"],
-                        norm=vec if vec is None else vec.norm().item(),
+                        norm=v if v is None else v.norm().item(),
+                        mean=v if v is None else v.mean().item(),
                     )
                     | (
                         {
                             f"p{i}": v
-                            for i, v in enumerate(
-                                np.percentile(
-                                    s[stats],
-                                    np.linspace(0, 1, 10),
-                                ),
-                            )
+                            for i, v in enumerate(np.percentile(v, self._percentiles))
                         }
-                        if vec is not None
+                        if v is not None
                         else {}
                     )
                 )
@@ -78,7 +87,7 @@ class Diagnostic:
 
         return df
 
-    def _accumulate_per_dim(self, name, x, dim):
+    def _accumulate_by_dim(self, name, x, dim):
         x = x.transpose(dim, -1)
         while x.dim() <= 1:
             x = x.unsqueeze(0)
@@ -116,7 +125,7 @@ class Diagnostic:
     @torch.no_grad()
     def _accumulate(self, name, x):
         for d in range(x.dim()):
-            self._accumulate_per_dim(name + f"/dim_{d}", x, d)
+            self._accumulate_by_dim(name + f"/dim_{d}", x, d)
 
     @global_leader_only
     def attach(self):
