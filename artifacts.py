@@ -26,7 +26,6 @@ def is_saving():
 
 
 def get_cfg_itr_strict():
-    assert is_saving()
     cfg = get_cfg()
     itr = get_iteration()
     assert cfg is not None

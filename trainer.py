@@ -18,6 +18,7 @@ from .utils import to_device
 
 _logger = logging.getLogger(__name__)
 _engines: Engines
+_command: str
 
 
 def get_global_step():
@@ -30,6 +31,13 @@ def get_global_step():
 def get_cfg():
     try:
         return _engines.cfg
+    except:
+        raise RuntimeError("Trainer has not been setup. Have you called trainer.train?")
+
+
+def get_cmd():
+    try:
+        return _command
     except:
         raise RuntimeError("Trainer has not been setup. Have you called trainer.train?")
 
@@ -67,6 +75,7 @@ def _get_stdin_selector():
 
 
 def _non_blocking_input():
+    global _command
     l = [""]
     if is_global_leader():
         s = ""
@@ -77,7 +86,8 @@ def _non_blocking_input():
             _logger.info(f'Get stdin "{s}".')
         l[0] = s
     broadcast_object_list(l, src=0)
-    return l[0]
+    _command = l[0]
+    return _command
 
 
 def _make_infinite_epochs(dl):
@@ -111,7 +121,7 @@ def train(
 
     events = []
 
-    eval_fn = global_leader_only()(eval_fn)
+    eval_fn = global_leader_only(eval_fn)
 
     # Pre-loop command
     command = _non_blocking_input()

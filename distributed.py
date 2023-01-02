@@ -32,42 +32,48 @@ def is_global_leader():
     return global_rank() == 0
 
 
-def local_leader_only(default=None):
-    def wrapper(f):
-        @wraps(f)
+def local_leader_only(fn=None, *, default=None):
+    def wrapper(fn):
+        @wraps(fn)
         def wrapped(*args, **kwargs):
             if is_local_leader():
-                return f(*args, **kwargs)
+                return fn(*args, **kwargs)
             return default
 
         return wrapped
 
-    return wrapper
+    if fn is None:
+        return wrapper
+
+    return wrapper(fn)
 
 
-def global_leader_only(default=None):
-    def wrapper(f):
-        @wraps(f)
+def global_leader_only(fn=None, *, default=None):
+    def wrapper(fn):
+        @wraps(fn)
         def wrapped(*args, **kwargs):
             if is_global_leader():
-                return f(*args, **kwargs)
+                return fn(*args, **kwargs)
             return default
 
         return wrapped
 
-    return wrapper
+    if fn is None:
+        return wrapper
+
+    return wrapper(fn)
 
 
-def nondistributed(f):
+def nondistributed(fn):
     @global_leader_only()
-    @wraps(f)
+    @wraps(fn)
     def wrapped(*args, **kwargs):
         # https://github.com/microsoft/DeepSpeed/blob/b47e25bf95250a863edb2c466200c697e15178fd/deepspeed/utils/distributed.py#L34
         # Deepspeed will check all environ before start distributed.
         # To avoid the start of a distributed task, remove one environ is enough.
         # Here we remove local rank.
         local_rank = os.environ.pop("LOCAL_RANK", "")
-        ret = f(*args, **kwargs)
+        ret = fn(*args, **kwargs)
         os.environ["LOCAL_RANK"] = local_rank
         return ret
 
