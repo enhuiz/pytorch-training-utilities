@@ -106,6 +106,8 @@ class Engines(dict[str, Engine]):
             torch.cuda.synchronize()
             start_time = time.time()
 
+            oom = False
+
             try:
                 maybe_loss_substats = fn(engines=self, batch=batch, name=name)
 
@@ -125,8 +127,16 @@ class Engines(dict[str, Engine]):
                 engine.step()
             except RuntimeError as e:
                 if "out of memory" in str(e) and self.cfg.save_on_oom:
-                    self.save_checkpoint()
-                raise e
+                    oom = True
+                else:
+                    raise e
+
+            # Do a sync here for OOM check.
+            torch.distributed.barrier()
+
+            if oom:
+                self.save_checkpoint()
+                raise RuntimeError("Out of memory!")
 
             torch.cuda.synchronize()
             elapsed_time = time.time() - start_time
