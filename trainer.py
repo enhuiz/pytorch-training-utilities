@@ -7,12 +7,18 @@ from functools import cache
 from typing import Protocol
 
 import humanize
+import numpy as np
 import torch
 from torch.distributed import broadcast_object_list
 from torch.utils.data import DataLoader
 
 from .config import Config
-from .distributed import global_leader_only, is_global_leader, local_leader_only
+from .distributed import (
+    global_leader_only,
+    global_rank,
+    is_global_leader,
+    local_leader_only,
+)
 from .engines import Engine, Engines, TrainStepFn
 from .utils import to_device
 
@@ -108,9 +114,10 @@ def train(
     eval_fn: EvalFn,
     logger: Logger = logger,
 ):
-    # Set up random seeds
-    random.seed(0)
-    torch.manual_seed(0)
+    # Set up random seeds, after fork()
+    random.seed(global_rank())
+    np.random.seed(global_rank())
+    torch.manual_seed(global_rank())
 
     engines = engines_loader()
     cfg = engines.cfg

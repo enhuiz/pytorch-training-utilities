@@ -1,6 +1,7 @@
 import os
 import socket
 from functools import cache, wraps
+from typing import Callable
 
 import deepspeed
 
@@ -48,7 +49,7 @@ def local_leader_only(fn=None, *, default=None):
     return wrapper(fn)
 
 
-def global_leader_only(fn=None, *, default=None):
+def global_leader_only(fn: Callable | None = None, *, default=None):
     def wrapper(fn):
         @wraps(fn)
         def wrapped(*args, **kwargs):
