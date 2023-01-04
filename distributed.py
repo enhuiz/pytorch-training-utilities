@@ -13,16 +13,30 @@ def get_free_port():
 
 
 @cache
-def init_distributed():
-    deepspeed.init_distributed()
+def fix_unset_envs():
+    envs = dict(
+        RANK="0",
+        WORLD_SIZE="1",
+        MASTER_ADDR="localhost",
+        MASTER_PORT=str(get_free_port()),
+        LOCAL_RANK="0",
+    )
+
+    for key in envs:
+        value = os.getenv(key)
+        if value is not None:
+            return
+
+    for key, value in envs.items():
+        os.environ[key] = value
 
 
 def local_rank():
-    return int(os.environ.get("LOCAL_RANK", 0))
+    return int(os.getenv("LOCAL_RANK", 0))
 
 
 def global_rank():
-    return int(os.environ.get("RANK", 0))
+    return int(os.getenv("RANK", 0))
 
 
 def is_local_leader():

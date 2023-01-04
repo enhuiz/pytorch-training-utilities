@@ -7,7 +7,7 @@ from deepspeed import DeepSpeedEngine
 from torch import Tensor
 
 from .config import Config
-from .distributed import is_local_leader
+from .distributed import fix_unset_envs, is_local_leader
 from .utils import dispatch_attribute, flatten_dict, gather_attribute
 
 Stats = dict[str, float]
@@ -17,6 +17,7 @@ _logger = logging.getLogger(__name__)
 
 class Engine(DeepSpeedEngine):
     def __init__(self, *args, **kwargs):
+        fix_unset_envs()
         super().__init__(None, *args, **kwargs)
 
     @property
@@ -45,9 +46,6 @@ class Engines(dict[str, Engine]):
     def setup(self, cfg: Config):
         self._cfg = cfg
         self._global_step = 0
-        if is_local_leader():
-            cfg.dump()
-            _logger.info(cfg)
 
     @property
     def cfg(self) -> Config:

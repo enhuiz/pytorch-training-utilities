@@ -17,6 +17,7 @@ from .distributed import (
     global_leader_only,
     global_rank,
     is_global_leader,
+    is_local_leader,
     local_leader_only,
 )
 from .engines import Engine, Engines, TrainStepFn
@@ -121,6 +122,10 @@ def train(
 
     engines = engines_loader()
     cfg = engines.cfg
+
+    if is_local_leader():
+        cfg.dump()
+        _logger.info(cfg)
 
     # Setup global engines
     global _engines
