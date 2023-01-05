@@ -3,6 +3,7 @@ Inspired by https://github.com/k2-fsa/icefall/blob/master/icefall/diagnostics.py
 """
 
 import logging
+import math
 from collections import defaultdict
 
 import numpy as np
@@ -48,6 +49,8 @@ class Diagnostic:
         for col in df.columns:
             if col not in ["min", "max", "size"]:
                 df[col] /= df["cnt"]
+            if col in ["rms"]:
+                df[col] = df[col].apply(math.sqrt)
 
         rows = []
 
@@ -106,7 +109,7 @@ class Diagnostic:
         self._history["abs"][name] += x.abs().sum(0).cpu()
         self._history["pos"][name] += x.clamp_min(0).sum(0).cpu()
         self._history["val"][name] += x.sum(0).cpu()
-        self._history["var"][name] += x.pow(2).sum(0).cpu()
+        self._history["rms"][name] += x.pow(2).sum(0).cpu()
         self._history["cnt"][name] += len(x)
 
         a = self._history["min"][name]
