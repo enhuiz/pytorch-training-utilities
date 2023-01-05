@@ -3,7 +3,6 @@ Inspired by https://github.com/k2-fsa/icefall/blob/master/icefall/diagnostics.py
 """
 
 import logging
-import math
 from collections import defaultdict
 
 import numpy as np
@@ -50,7 +49,7 @@ class Diagnostic:
             if col not in ["min", "max", "size"]:
                 df[col] /= df["cnt"]
             if col in ["rms"]:
-                df[col] = df[col].apply(math.sqrt)
+                df[col] = df[col].apply(torch.sqrt)
 
         rows = []
 
