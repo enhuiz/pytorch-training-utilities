@@ -3,8 +3,6 @@ import socket
 from functools import cache, wraps
 from typing import Callable
 
-import deepspeed
-
 
 def get_free_port():
     sock = socket.socket()
@@ -47,7 +45,7 @@ def is_global_leader():
     return global_rank() == 0
 
 
-def local_leader_only(fn=None, *, default=None):
+def local_leader_only(fn=None, *, default=None) -> Callable:
     def wrapper(fn):
         @wraps(fn)
         def wrapped(*args, **kwargs):
@@ -63,7 +61,7 @@ def local_leader_only(fn=None, *, default=None):
     return wrapper(fn)
 
 
-def global_leader_only(fn: Callable | None = None, *, default=None):
+def global_leader_only(fn: Callable | None = None, *, default=None) -> Callable:
     def wrapper(fn):
         @wraps(fn)
         def wrapped(*args, **kwargs):
