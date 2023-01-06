@@ -45,6 +45,7 @@ class Diagnostic:
     @property
     def dataframe(self):
         df = pd.DataFrame(self._history)
+
         for col in df.columns:
             if col not in ["min", "max", "size"]:
                 df[col] /= df["cnt"]
@@ -63,24 +64,22 @@ class Diagnostic:
                 if not isinstance(v, Tensor):
                     v = None
 
-                rows.append(
-                    dict(
-                        name=name,
-                        type=self._get_type(name),
-                        stats=stats,
-                        size=s["size"],
-                        norm=v if v is None else v.norm().item(),
-                        mean=v if v is None else v.mean().item(),
-                    )
-                    | (
-                        {
-                            f"p{i}": v
-                            for i, v in enumerate(np.percentile(v, self._percentiles))
-                        }
-                        if v is not None
-                        else {}
-                    )
+                row = dict(
+                    name=name,
+                    type=self._get_type(name),
+                    stats=stats,
+                    size=s["size"],
+                    norm=v if v is None else v.norm().item(),
+                    mean=v if v is None else v.mean().item(),
                 )
+
+                if v is not None:
+                    row |= {
+                        f"p{i}": v
+                        for i, v in enumerate(np.percentile(v, self._percentiles))
+                    }
+
+                rows.append(row)
 
         df = pd.DataFrame(rows)
 

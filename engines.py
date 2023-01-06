@@ -3,11 +3,12 @@ import time
 from typing import Any, Protocol
 
 import torch
+import torch.distributed
 from deepspeed import DeepSpeedEngine
 from torch import Tensor
 
 from .config import Config
-from .distributed import fix_unset_envs, is_local_leader
+from .distributed import fix_unset_envs
 from .utils import dispatch_attribute, flatten_dict, gather_attribute
 
 Stats = dict[str, float]
@@ -31,13 +32,9 @@ class Engine(DeepSpeedEngine):
         return dispatch_attribute(self.module, *args, **kwargs)
 
 
-class TrainStepFn(Protocol):
+class TrainFeeder(Protocol):
     def __call__(
-        self,
-        *,
-        engines: "Engines",
-        batch: Any,
-        name: str,
+        self, *, engines: "Engines", batch: Any, name: str
     ) -> None | tuple[Tensor, Stats]:
         ...
 
@@ -95,7 +92,7 @@ class Engines(dict[str, Engine]):
         for engine in self.values():
             engine.train()
 
-    def step(self, fn: TrainStepFn, batch):
+    def step(self, feeder: TrainFeeder, batch):
         total_elapsed_time = 0
 
         stats: Any = dict()
@@ -107,14 +104,16 @@ class Engines(dict[str, Engine]):
             oom = False
 
             try:
-                maybe_loss_substats = fn(engines=self, batch=batch, name=name)
+                maybe_loss_and_engine_stats = feeder(
+                    engines=self, batch=batch, name=name
+                )
 
-                if maybe_loss_substats is None:
+                if maybe_loss_and_engine_stats is None:
                     # Here we allow skip optimizers. It's useful when, for example,
                     # skipping discriminators in the begining of GAN training.
                     continue
 
-                loss, substats = maybe_loss_substats
+                loss, engine_stats = maybe_loss_and_engine_stats
 
                 engine.backward(loss)
 
@@ -123,6 +122,25 @@ class Engines(dict[str, Engine]):
                 grad_norm = torch.stack([g.detach().norm() for g in grads]).norm()
 
                 engine.step()
+
+                torch.cuda.synchronize()
+                elapsed_time = time.time() - start_time
+                total_elapsed_time += elapsed_time
+
+                stats.update(
+                    flatten_dict(
+                        {
+                            name: dict(
+                                loss=loss.item(),
+                                lr=engine.get_lr()[0],
+                                grad_norm=grad_norm.item(),
+                                elapsed_time=elapsed_time,
+                                engine_step=engine.global_step,
+                                **engine_stats,
+                            )
+                        }
+                    ),
+                )
             except RuntimeError as e:
                 if "out of memory" in str(e) and self.cfg.save_on_oom:
                     oom = True
@@ -135,25 +153,6 @@ class Engines(dict[str, Engine]):
             if oom:
                 self.save_checkpoint()
                 raise RuntimeError("Out of memory!")
-
-            torch.cuda.synchronize()
-            elapsed_time = time.time() - start_time
-            total_elapsed_time += elapsed_time
-
-            stats.update(
-                flatten_dict(
-                    {
-                        name: dict(
-                            loss=loss.item(),
-                            lr=engine.get_lr()[0],
-                            grad_norm=grad_norm.item(),
-                            elapsed_time=elapsed_time,
-                            engine_step=engine.global_step,
-                            **substats,
-                        )
-                    }
-                ),
-            )
 
         self._update_global_step()
         stats["elapsed_time"] = total_elapsed_time

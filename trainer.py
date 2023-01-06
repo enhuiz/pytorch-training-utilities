@@ -20,7 +20,7 @@ from .distributed import (
     is_local_leader,
     local_leader_only,
 )
-from .engines import Engine, Engines, TrainStepFn
+from .engines import Engine, Engines, TrainFeeder
 from .utils import to_device
 
 _logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ def logger(data):
 def train(
     engines_loader: EnginesLoader,
     train_dl: DataLoader,
-    train_step_fn: TrainStepFn,
+    train_feeder: TrainFeeder,
     eval_fn: EvalFn,
     logger: Logger = logger,
 ):
@@ -150,7 +150,7 @@ def train(
             break
 
         batch = to_device(batch, torch.cuda.current_device())
-        stats = engines.step(fn=train_step_fn, batch=batch)
+        stats = engines.step(fn=train_feeder, batch=batch)
         elapsed_time = stats.get("elapsed_time", 0)
         logger(data=stats)
 
