@@ -46,7 +46,10 @@ class Diagnostic:
             return
 
         if size < self._max_pca_dim and len(tensor) > 1:
-            self._history["pca"][name] += torch.pca_lowrank(tensor)[1].cpu()
+            try:
+                self._history["pca"][name] += torch.pca_lowrank(tensor)[1].cpu()
+            except:
+                pass
 
         self._history["abs"][name] += tensor.abs().sum(0).cpu()
         self._history["pos"][name] += tensor.clamp_min(0).sum(0).cpu()
