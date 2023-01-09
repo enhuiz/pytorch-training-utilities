@@ -20,6 +20,18 @@ class Engine(DeepSpeedEngine):
     def __init__(self, *args, **kwargs):
         fix_unset_envs()
         super().__init__(None, *args, **kwargs)
+        self._frozen_params = set()
+
+    def freeze(self):
+        for p in self.module.parameters():
+            if p.require_grad:
+                p.require_grad_(False)
+                self._frozen_params.add(p)
+
+    def unfreeze(self):
+        for p in self._frozen_params:
+            p.require_grad_(True)
+        self._frozen_params.clear()
 
     @property
     def global_step(self):
