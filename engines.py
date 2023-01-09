@@ -24,13 +24,13 @@ class Engine(DeepSpeedEngine):
 
     def freeze(self):
         for p in self.module.parameters():
-            if p.require_grad:
-                p.require_grad_(False)
+            if p.requires_grad:
+                p.requires_grad_(False)
                 self._frozen_params.add(p)
 
     def unfreeze(self):
         for p in self._frozen_params:
-            p.require_grad_(True)
+            p.requires_grad_(True)
         self._frozen_params.clear()
 
     @property
