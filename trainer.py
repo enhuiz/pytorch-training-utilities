@@ -188,14 +188,14 @@ def train(
                 remaining_time = int(remaining_iters * elapsed_time)
                 _logger.info(humanize.precisedelta(remaining_time))
 
-            save_every = cfg.save_model_every or cfg.eval_every
+            save_ckpt_every = cfg.save_ckpt_every or cfg.eval_every
 
             saving_commands = ["save"]
 
             if cfg.save_on_quit:
                 saving_commands.append("quit")
 
-            if engines.global_step % save_every == 0 or command in saving_commands:
+            if engines.global_step % save_ckpt_every == 0 or command in saving_commands:
                 engines.save_checkpoint()
 
             if engines.global_step % cfg.eval_every == 0 or command in ["eval"]:

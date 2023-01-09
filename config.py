@@ -22,7 +22,7 @@ class Config:
 
     eval_every: int = 1_000
     save_artifacts_every: int | None = 100
-    save_model_every: int | None = None
+    save_ckpt_every: int | None = None
 
     save_on_oom: bool = True
     save_on_quit: bool = True
