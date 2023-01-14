@@ -98,25 +98,36 @@ def setup_logging(log_dir: str | Path | None = "log", log_level="info"):
 
 
 @overload
-def to_device(x: list[T], device: str) -> list[T]:
+def tree_map(fn: Callable, x: list[T]) -> list[T]:
     ...
 
 
 @overload
-def to_device(x: dict[str, T], device: str) -> dict[str, T]:
+def tree_map(fn: Callable, x: tuple[T]) -> tuple[T]:
     ...
 
 
 @overload
-def to_device(x: T, device: str) -> T:
+def tree_map(fn: Callable, x: dict[str, T]) -> dict[str, T]:
     ...
 
 
-def to_device(x, device):
+@overload
+def tree_map(fn: Callable, x: T) -> T:
+    ...
+
+
+def tree_map(fn: Callable, x):
     if isinstance(x, list):
-        x = [to_device(xi, device) for xi in x]
+        x = [tree_map(fn, xi) for xi in x]
+    elif isinstance(x, tuple):
+        x = (tree_map(fn, xi) for xi in x)
     elif isinstance(x, dict):
-        x = {k: to_device(v, device) for k, v in x.items()}
+        x = {k: tree_map(fn, v) for k, v in x.items()}
     elif isinstance(x, Tensor):
-        x = x.to(device)
+        x = fn(x)
     return x
+
+
+def to_device(x: T, device) -> T:
+    return tree_map(lambda t: t.to(device), x)

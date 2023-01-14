@@ -7,4 +7,5 @@ from .utils import (
     load_state_dict_non_strict,
     setup_logging,
     to_device,
+    tree_map,
 )
