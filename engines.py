@@ -130,8 +130,8 @@ class Engines(dict[str, Engine]):
                 engine.backward(loss)
 
                 # For monitoring purpose
-                grads = [p.grad for p in engine.parameters() if p.grad is not None]
-                grad_norm = torch.stack([g.detach().norm() for g in grads]).norm()
+                gs = [p.grad.float() for p in engine.parameters() if p.grad is not None]
+                grad_norm = torch.stack([g.detach().norm() for g in gs]).norm()
 
                 engine.step()
 
