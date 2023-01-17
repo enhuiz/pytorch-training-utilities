@@ -43,6 +43,20 @@ class Engine(DeepSpeedEngine):
     def dispatch_attribute(self, *args, **kwargs):
         return dispatch_attribute(self.module, *args, **kwargs)
 
+    @torch.no_grad()
+    def compute_grad_norm(self):
+        grads = [
+            p.grad.float() / self.grad_scale
+            for p in self.parameters()
+            if p.grad is not None
+        ]
+        grad_norm = torch.stack([g.detach().norm() for g in grads]).norm()
+        return grad_norm
+
+    @property
+    def grad_scale(self):
+        return getattr(self.optimizer, "cur_scale", 1)
+
 
 class TrainFeeder(Protocol):
     def __call__(
@@ -128,11 +142,8 @@ class Engines(dict[str, Engine]):
                 loss, engine_stats = maybe_loss_and_engine_stats
 
                 engine.backward(loss)
-
                 # For monitoring purpose
-                gs = [p.grad.float() for p in engine.parameters() if p.grad is not None]
-                grad_norm = torch.stack([g.detach().norm() for g in gs]).norm()
-
+                grad_norm = engine.compute_grad_norm()
                 engine.step()
 
                 torch.cuda.synchronize()
