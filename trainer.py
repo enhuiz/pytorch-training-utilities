@@ -108,6 +108,13 @@ def logger(data):
     return _logger.info(json.dumps(data, indent=2, default=str))
 
 
+def seed(seed):
+    # Set up random seeds, after fork()
+    random.seed(seed + global_rank())
+    np.random.seed(seed + global_rank())
+    torch.manual_seed(seed + global_rank())
+
+
 def train(
     engines_loader: EnginesLoader,
     train_dl: DataLoader,
@@ -115,11 +122,6 @@ def train(
     eval_fn: EvalFn,
     logger: Logger = logger,
 ):
-    # Set up random seeds, after fork()
-    random.seed(global_rank())
-    np.random.seed(global_rank())
-    torch.manual_seed(global_rank())
-
     engines = engines_loader()
     cfg = engines.cfg
 
