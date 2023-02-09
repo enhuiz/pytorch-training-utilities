@@ -8,7 +8,7 @@ import pandas as pd
 from coloredlogs import ColoredFormatter
 from torch import Tensor, nn
 
-from .distributed import global_rank, local_rank
+from .distributed import global_rank, local_rank, global_leader_only
 
 T = TypeVar("T")
 
@@ -75,6 +75,7 @@ def load_state_dict_non_strict(model, state_dict, logger=None):
     model.load_state_dict(state_dict, strict=False)
 
 
+@global_leader_only
 def setup_logging(log_dir: str | Path | None = "log", log_level="info"):
     handlers = []
     stdout_handler = StreamHandler()
