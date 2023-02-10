@@ -97,12 +97,14 @@ class Engines(dict[str, Engine]):
         for name, engine in self.items():
             engine.save_checkpoint(self.cfg.ckpt_dir / name, tag=tag)
 
-    def load_checkpoint(self, tag=None, strict=False):
+    def load_checkpoint(self, tag=None):
         for name, engine in self.items():
+            load_dir = self.cfg.ckpt_dir / name
             engine.load_checkpoint(
-                self.cfg.ckpt_dir / name,
                 tag=tag,
-                load_module_strict=strict,
+                load_dir=load_dir,
+                load_module_strict=self.cfg.strict_loading,
+                load_optimizer_states=self.cfg.strict_loading,
             )
         self._update_global_step()
 
