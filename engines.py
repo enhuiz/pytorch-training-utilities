@@ -6,6 +6,7 @@ import torch
 import torch.distributed
 from deepspeed import DeepSpeedEngine
 from torch import Tensor
+from torch.distributed import all_reduce
 
 from .config import Config
 from .distributed import fix_unset_envs
@@ -42,20 +43,6 @@ class Engine(DeepSpeedEngine):
 
     def dispatch_attribute(self, *args, **kwargs):
         return dispatch_attribute(self.module, *args, **kwargs)
-
-    @torch.no_grad()
-    def compute_grad_norm(self):
-        grads = [
-            p.grad.float() / self.grad_scale
-            for p in self.parameters()
-            if p.grad is not None
-        ]
-        grad_norm = torch.stack([g.detach().norm() for g in grads]).norm()
-        return grad_norm
-
-    @property
-    def grad_scale(self):
-        return getattr(self.optimizer, "cur_scale", 1)
 
 
 class TrainFeeder(Protocol):
@@ -129,7 +116,7 @@ class Engines(dict[str, Engine]):
             torch.cuda.synchronize()
             start_time = time.time()
 
-            oom = False
+            n_ooms = torch.zeros([], device=self.cfg.device)
 
             try:
                 maybe_loss_and_engine_stats = feeder(
@@ -144,8 +131,6 @@ class Engines(dict[str, Engine]):
                 loss, engine_stats = maybe_loss_and_engine_stats
 
                 engine.backward(loss)
-                # For monitoring purpose
-                grad_norm = engine.compute_grad_norm()
                 engine.step()
 
                 torch.cuda.synchronize()
@@ -158,7 +143,8 @@ class Engines(dict[str, Engine]):
                             name: dict(
                                 loss=loss.item(),
                                 lr=engine.get_lr()[0],
-                                grad_norm=grad_norm.item(),
+                                # This norm is delayed but global and avoids extra computation
+                                grad_norm=engine.get_global_grad_norm(),
                                 elapsed_time=elapsed_time,
                                 engine_step=engine.global_step,
                                 **engine_stats,
@@ -168,14 +154,13 @@ class Engines(dict[str, Engine]):
                 )
             except RuntimeError as e:
                 if "out of memory" in str(e) and self.cfg.save_on_oom:
-                    oom = True
+                    n_ooms += 1
                 else:
                     raise e
 
-            # Do a sync here for OOM check.
-            torch.distributed.barrier()
+            all_reduce(n_ooms)
 
-            if oom:
+            if n_ooms.item() > 0:
                 self.save_checkpoint()
                 raise RuntimeError("Out of memory!")
 
