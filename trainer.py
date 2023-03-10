@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from torch.distributed import broadcast_object_list
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from .config import Config
 from .distributed import (
@@ -100,7 +101,7 @@ def _non_blocking_input():
 def _make_infinite_epochs(dl):
     while True:
         _logger.info("New epoch starts.")
-        yield from dl
+        yield from tqdm(dl, "Epoch progress", dynamic_ncols=True)
 
 
 @local_leader_only(default=None)
