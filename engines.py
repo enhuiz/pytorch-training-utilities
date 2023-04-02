@@ -1,5 +1,6 @@
 import logging
 import time
+import warnings
 from typing import Any, Protocol
 
 import torch
@@ -14,8 +15,6 @@ from .utils import dispatch_attribute, flatten_dict, gather_attribute
 
 Stats = dict[str, float]
 
-_logger = logging.getLogger(__name__)
-
 
 class Engine(DeepSpeedEngine):
     def __init__(self, *args, **kwargs):
@@ -23,16 +22,24 @@ class Engine(DeepSpeedEngine):
         super().__init__(None, *args, **kwargs)
         self._frozen_params = set()
 
-    def freeze(self):
+    def freeze_(self):
         for p in self.module.parameters():
             if p.requires_grad:
                 p.requires_grad_(False)
                 self._frozen_params.add(p)
 
-    def unfreeze(self):
+    def unfreeze_(self):
         for p in self._frozen_params:
             p.requires_grad_(True)
         self._frozen_params.clear()
+
+    def freeze(self):
+        warnings.warn("freeze is deprecated, use freeze_ instead", DeprecationWarning)
+        self.freeze_()
+
+    def unfreeze(self):
+        warnings.warn("freeze is deprecated, use freeze_ instead", DeprecationWarning)
+        self.unfreeze_()
 
     @property
     def global_step(self):
