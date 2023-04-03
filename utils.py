@@ -8,7 +8,7 @@ import pandas as pd
 from coloredlogs import ColoredFormatter
 from torch import Tensor, nn
 
-from .distributed import global_rank, local_rank, global_leader_only
+from .distributed import global_leader_only, global_rank, local_rank
 
 T = TypeVar("T")
 

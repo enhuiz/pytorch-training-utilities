@@ -41,9 +41,9 @@ def get_path(name, suffix, mkdir=True):
     return path
 
 
-def save_fig(name):
+def save_fig(name, *args, **kwargs):
     path = get_path(name, ".png")
-    plt.savefig(path)
+    plt.savefig(path, *args, **kwargs)
     plt.close()
     print(path, "saved.")
 
