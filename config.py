@@ -7,6 +7,23 @@ from functools import cached_property
 from pathlib import Path
 
 from omegaconf import OmegaConf
+from rich.console import Console
+from rich.table import Table
+
+console = Console()
+
+
+def _as_rich_table(d, key="Key", value="Value"):
+    table = Table()
+    table.add_column(key, justify="left", style="cyan")
+    table.add_column(value, justify="left", style="magenta")
+    for k, v in d.items():
+        table.add_row(k, str(v))
+    return table
+
+
+def _print_rich_table(d, key="Key", value="Value"):
+    console.print(_as_rich_table(d, key, value))
 
 
 @dataclass(frozen=True)
@@ -64,17 +81,24 @@ class Config:
         except:
             return ""
 
-    def dumps(self):
+    def as_dict(self):
         data = {k: getattr(self, k) for k in dir(self) if not k.startswith("__")}
         data = {k: v for k, v in data.items() if not callable(v)}
+        return data
+
+    def as_json(self):
+        data = self.as_dict()
         return json.dumps(data, indent=2, default=str)
 
-    def dump(self, path=None):
+    def save(self, path=None):
+        """
+        Save config to a json file, by default in the log directory.
+        """
         if path is None:
             path = self.log_dir / "cfg.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
-            f.write(self.dumps())
+            f.write(self.as_json())
 
     @staticmethod
     def _is_cfg_argv(s):
@@ -88,8 +112,7 @@ class Config:
         sys.argv = [s for s in sys.argv if not cls._is_cfg_argv(s)]
 
         if cli_cfg.get("help"):
-            print(f"Configurable hyperparameters with their default values:")
-            print(json.dumps(asdict(cls()), indent=2, default=str))
+            _print_rich_table(asdict(cls()), key="Key", value="Default")
             exit()
 
         if "yaml" in cli_cfg:
@@ -114,9 +137,12 @@ class Config:
         return str(self)
 
     def __str__(self):
-        return self.dumps()
+        return self.as_json()
+
+    def print(self):
+        _print_rich_table(self.as_dict(), key="Key", value="Value")
 
 
 if __name__ == "__main__":
     cfg = Config.from_cli()
-    print(cfg)
+    cfg.print()

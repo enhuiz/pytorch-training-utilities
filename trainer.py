@@ -127,8 +127,8 @@ def train(
     cfg = engines.cfg
 
     if is_local_leader():
-        cfg.dump()
-        _logger.info(cfg)
+        cfg.save()
+        cfg.print()
 
     # Setup global engines
     global _engines
