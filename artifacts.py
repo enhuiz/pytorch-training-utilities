@@ -4,6 +4,7 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.markers import MarkerStyle
+from torch import Tensor
 
 from .distributed import is_local_leader
 from .trainer import get_cfg, get_iteration
@@ -48,12 +49,20 @@ def save_fig(name, *args, **kwargs):
     print(path, "saved.")
 
 
-def save_wav(name, wav, sr):
+def save_wav(name, wav: Tensor, sr: int):
+    """
+    Args:
+        name: name of the artifact.
+        wav: (c t)
+        sr: sample rate
+    """
+    assert wav.ndim == 2, f"Expected (c t), got {wav.shape}"
+
     # Lazy import
-    import soundfile
+    import torchaudio
 
     path = get_path(name, ".wav")
-    soundfile.write(str(path), wav, sr)
+    torchaudio.save(path, wav, sr)
     print(path, "saved.")
 
 
