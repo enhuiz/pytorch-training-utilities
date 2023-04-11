@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from functools import cached_property
 from pathlib import Path
 
+import diskcache
 from omegaconf import OmegaConf
 from rich.console import Console
 from rich.table import Table
@@ -28,7 +29,9 @@ def _print_rich_table(d, key="Key", value="Value"):
 
 @dataclass(frozen=True)
 class Config:
+    # i.e. group name in wandb
     cfg_name: str = "my-cfg"
+
     log_root: Path = Path("logs")
     ckpt_root: Path = Path("ckpts")
 
@@ -47,19 +50,27 @@ class Config:
 
     @property
     def relpath(self):
-        return Path(self.cfg_name)
+        return None
 
     @property
     def cfg_relpath(self):
         return None
 
     @property
+    def __cfg_name_as_path(self):
+        return Path(self.cfg_name)
+
+    @property
     def ckpt_dir(self):
-        return self.ckpt_root / self.relpath
+        return self.ckpt_root / self.__cfg_name_as_path
 
     @property
     def log_dir(self):
-        return self.log_root / self.relpath / str(self.start_time)
+        return self.log_root / self.__cfg_name_as_path / self.run_name
+
+    @property
+    def run_name(self):
+        return str(self.start_time)
 
     @cached_property
     def start_time(self):
@@ -80,6 +91,14 @@ class Config:
             return subprocess.check_output(cmd.split()).decode("utf8").strip()
         except:
             return ""
+
+    @property
+    def cache_dir(self):
+        return ".cache" / self.__cfg_name_as_path
+
+    @cached_property
+    def diskcache(self):
+        return diskcache.Cache(self.cache_dir).memoize
 
     def as_dict(self):
         data = {k: getattr(self, k) for k in dir(self) if not k.startswith("__")}
@@ -131,7 +150,12 @@ class Config:
 
     def __post_init__(self):
         if self.cfg_relpath is not None:
-            raise RuntimeError("cfg_relpath is deprecated.")
+            raise DeprecationWarning("cfg_relpath is deprecated.")
+        if self.relpath is not None:
+            raise DeprecationWarning(
+                "relpath is deprecated, no longer support customize relpath. "
+                "Just put the yaml file in the desired directory to get the corresponding relpath."
+            )
 
     def __repr__(self):
         return str(self)

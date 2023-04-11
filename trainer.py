@@ -14,14 +14,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from .config import Config
-from .distributed import (
-    global_leader_only,
-    global_rank,
-    is_global_leader,
-    is_local_leader,
-    local_leader_only,
-)
+from .distributed import global_leader_only, global_rank, is_global_leader
 from .engines import Engine, Engines, TrainFeeder
+from .loggers import Logger, WandbWithDefaultLogger
 from .utils import to_device
 
 _logger = logging.getLogger(__name__)
@@ -70,11 +65,6 @@ class EvalFn(Protocol):
         ...
 
 
-class Logger(Protocol):
-    def __call__(self, *, data: dict):
-        ...
-
-
 @cache
 def _get_stdin_selector():
     selector = selectors.DefaultSelector()
@@ -104,11 +94,6 @@ def _make_infinite_epochs(dl):
         yield from tqdm(dl, "Epoch progress", dynamic_ncols=True)
 
 
-@local_leader_only(default=None)
-def logger(data):
-    return _logger.info(json.dumps(data, indent=2, default=str))
-
-
 def seed(seed):
     # Set up random seeds, after fork()
     random.seed(seed + global_rank())
@@ -121,12 +106,15 @@ def train(
     train_dl: DataLoader,
     train_feeder: TrainFeeder,
     eval_fn: EvalFn,
-    logger: Logger = logger,
+    logger: Logger | None = None,
 ):
     engines = engines_loader()
     cfg = engines.cfg
 
-    if is_local_leader():
+    if logger is None:
+        logger = WandbWithDefaultLogger(cfg)
+
+    if is_global_leader():
         cfg.save()
         cfg.print()
 
