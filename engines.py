@@ -5,6 +5,7 @@ from typing import Any, Protocol
 import torch
 import torch.distributed
 from deepspeed import DeepSpeedEngine
+from deepspeed.runtime.utils import clip_grad_norm_
 from torch import Tensor
 from torch.distributed import all_reduce
 
@@ -20,6 +21,7 @@ class Engine(DeepSpeedEngine):
         fix_unset_envs()
         super().__init__(None, *args, **kwargs)
         self._frozen_params = set()
+        self._fp32_grad_norm = None
 
     def freeze_(self):
         for p in self.module.parameters():
@@ -49,6 +51,19 @@ class Engine(DeepSpeedEngine):
 
     def dispatch_attribute(self, *args, **kwargs):
         return dispatch_attribute(self.module, *args, **kwargs)
+
+    def clip_fp32_gradients(self):
+        self._fp32_grad_norm = clip_grad_norm_(
+            parameters=self.module.parameters(),
+            max_norm=self.gradient_clipping(),
+            mpu=self.mpu,
+        )
+
+    def get_grad_norm(self):
+        grad_norm = self.get_global_grad_norm()
+        if grad_norm is None:
+            grad_norm = self._fp32_grad_norm
+        return grad_norm
 
 
 class TrainFeeder(Protocol):
@@ -149,8 +164,7 @@ class Engines(dict[str, Engine]):
                             name: dict(
                                 loss=loss.item(),
                                 lr=engine.get_lr()[0],
-                                # This norm is delayed but global and avoids extra computation
-                                grad_norm=engine.get_global_grad_norm(),
+                                grad_norm=engine.get_grad_norm(),
                                 elapsed_time=elapsed_time,
                                 engine_step=engine.global_step,
                                 **engine_stats,
