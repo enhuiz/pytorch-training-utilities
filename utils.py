@@ -18,7 +18,7 @@ def _get_named_modules(module, attrname):
             yield name, module
 
 
-def gather_attribute(module, attrname, delete=True, prefix=True):
+def gather_attribute(module, attrname, delete=True, prefix="module"):
     ret = {}
     for name, module in _get_named_modules(module, attrname):
         ret[name] = getattr(module, attrname)
@@ -28,7 +28,7 @@ def gather_attribute(module, attrname, delete=True, prefix=True):
             except Exception as e:
                 raise RuntimeError(f"{name} {module} {attrname}") from e
     if prefix:
-        ret = {attrname: ret}
+        ret = {prefix: ret}
     ret = flatten_dict(ret)
     # remove consecutive dots
     ret = {re.sub(r"\.+", ".", k): v for k, v in ret.items()}

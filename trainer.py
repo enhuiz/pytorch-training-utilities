@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from .config import Config
 from .distributed import global_leader_only, global_rank, is_global_leader
-from .engines import Engine, Engines, TrainFeeder
+from .engines import Engine, Engines, StepFn
 from .loggers import Logger, WandbWithDefaultLogger
 from .utils import to_device
 
@@ -104,7 +104,7 @@ def seed(seed):
 def train(
     engines_loader: EnginesLoader,
     train_dl: DataLoader,
-    train_feeder: TrainFeeder,
+    step_fn: StepFn,
     eval_fn: EvalFn,
     logger: Logger | None = None,
 ):
@@ -141,7 +141,7 @@ def train(
             break
 
         batch = to_device(batch, torch.cuda.current_device())
-        stats = engines.step(feeder=train_feeder, batch=batch)
+        stats = engines.step(step_fn=step_fn, batch=batch)
         elapsed_time = stats.get("elapsed_time", 0)
         logger(data=stats)
 

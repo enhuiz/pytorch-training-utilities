@@ -13,7 +13,7 @@ from .config import Config
 from .distributed import fix_unset_envs
 from .utils import dispatch_attribute, flatten_dict, gather_attribute
 
-Stats = dict[str, float]
+Stats = dict[str, float | int]
 
 
 class Engine(DeepSpeedEngine):
@@ -66,10 +66,59 @@ class Engine(DeepSpeedEngine):
         return grad_norm
 
 
-class TrainFeeder(Protocol):
-    def __call__(
-        self, *, engines: "Engines", batch: Any, name: str
-    ) -> None | tuple[Tensor, Stats]:
+class StepOutput:
+    def asdict(self):
+        raise NotImplementedError
+
+
+class Skip(StepOutput):
+    """
+    Skip the step.
+
+    It's useful when, for example,
+    skipping discriminators in the begining of GAN training.
+    """
+
+    def asdict(self):
+        return {}
+
+
+class SkipBackward(StepOutput):
+    """
+    Skip backward pass, but still do optimizer step.
+
+    You can do customized gradient accumulation.
+    """
+
+    def __init__(self, stats: Stats):
+        self.stats = stats
+
+    def asdict(self):
+        return {**self.stats}
+
+
+class FullStep(StepOutput):
+    """
+    Do a full step: backward, optimizer step.
+    """
+
+    def __init__(self, losses: Tensor | dict, stats: Stats):
+        if isinstance(losses, Tensor):
+            losses = {"loss": losses}
+        self.losses = flatten_dict(losses)
+        self.stats = stats
+
+    @property
+    def loss(self) -> Tensor:
+        return torch.stack([*self.losses.values()]).sum()
+
+    def asdict(self):
+        losses = {k: v.item() for k, v in self.losses.items()}
+        return {**losses, **self.stats}
+
+
+class StepFn(Protocol):
+    def __call__(self, *, engines: "Engines", batch: Any, name: str) -> StepOutput:
         ...
 
 
@@ -93,7 +142,7 @@ class Engines(dict[str, Engine]):
     def gather_attribute(self, *args, **kwargs):
         ret = {}
         for engine in self.values():
-            ret |= engine.gather_attribute(*args, **kwargs)
+            ret |= engine.gather_attribute(*args, **kwargs, prefix=engine.name)
         return ret
 
     def dispatch_attribute(self, *args, **kwargs):
@@ -128,30 +177,26 @@ class Engines(dict[str, Engine]):
         for engine in self.values():
             engine.train()
 
-    def step(self, feeder: TrainFeeder, batch):
+    def step(self, step_fn: StepFn, batch):
         total_elapsed_time = 0
 
         stats: Any = dict()
 
         for name, engine in self.items():
+            n_ooms = torch.zeros([], device=self.cfg.device)
+
             torch.cuda.synchronize()
             start_time = time.time()
 
-            n_ooms = torch.zeros([], device=self.cfg.device)
-
             try:
-                maybe_loss_and_engine_stats = feeder(
-                    engines=self, batch=batch, name=name
-                )
+                output = step_fn(engines=self, batch=batch, name=name)
 
-                if maybe_loss_and_engine_stats is None:
-                    # Here we allow skip optimizers. It's useful when, for example,
-                    # skipping discriminators in the begining of GAN training.
+                if isinstance(output, Skip):
                     continue
 
-                loss, engine_stats = maybe_loss_and_engine_stats
+                if isinstance(output, FullStep):
+                    engine.backward(output.loss)
 
-                engine.backward(loss)
                 engine.step()
 
                 torch.cuda.synchronize()
@@ -162,12 +207,11 @@ class Engines(dict[str, Engine]):
                     flatten_dict(
                         {
                             name: dict(
-                                loss=loss.item(),
+                                **output.asdict(),
                                 lr=engine.get_lr()[0],
                                 grad_norm=engine.get_grad_norm(),
                                 elapsed_time=elapsed_time,
                                 engine_step=engine.global_step,
-                                **engine_stats,
                             )
                         }
                     ),
