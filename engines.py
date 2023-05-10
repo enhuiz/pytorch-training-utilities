@@ -141,8 +141,8 @@ class Engines(dict[str, Engine]):
 
     def gather_attribute(self, *args, **kwargs):
         ret = {}
-        for engine in self.values():
-            ret |= engine.gather_attribute(*args, **kwargs, prefix=engine.name)
+        for name, engine in self.items():
+            ret |= engine.gather_attribute(*args, **kwargs, prefix=name)
         return ret
 
     def dispatch_attribute(self, *args, **kwargs):
