@@ -2,9 +2,11 @@ import time
 import warnings
 from typing import Any, Protocol
 
+import deepspeed
 import torch
 import torch.distributed
 from deepspeed import DeepSpeedEngine
+from deepspeed.accelerator import get_accelerator
 from deepspeed.runtime.utils import clip_grad_norm_
 from torch import Tensor
 from torch.distributed import all_reduce
@@ -19,6 +21,7 @@ Stats = dict[str, float | int]
 class Engine(DeepSpeedEngine):
     def __init__(self, *args, **kwargs):
         fix_unset_envs()
+        deepspeed.init_distributed(get_accelerator().communication_backend_name())
         super().__init__(None, *args, **kwargs)
         self._frozen_params = set()
         self._fp32_grad_norm = None
